@@ -303,7 +303,7 @@ class FuzzyClient {
         let fdThreads = max(1, ProcessInfo.processInfo.activeProcessorCount / 3)
         log.debug("Indexing files with \(fdThreads) threads")
 
-        let changedWithinArg = changedWithin.map { ["--changed-within", "@\($0.timeIntervalSince1970)"] } ?? []
+        let changedWithinArg = changedWithin.map { ["--changed-within", "@\($0.timeIntervalSince1970.intround)"] } ?? []
         let commonArgs = ["-j", "\(fdThreads)", "--one-file-system"] + changedWithinArg + ["--ignore-file", "\(HOME.string)/.fsignore"]
         let commands = [
             (
