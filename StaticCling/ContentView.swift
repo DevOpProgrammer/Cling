@@ -67,9 +67,10 @@ struct ContentView: View {
             ScriptActionButtons(selectedResults: selectedResults, focused: $focused)
                 .hfill(.leading)
 
-            StatusBarView().hfill(.leading)
+            StatusBarView().hfill(.leading).padding(.top, 10)
         }
-        .padding()
+        .padding([.top, .leading, .trailing])
+        .padding(.bottom, 4)
         .onAppear {
             focused = .search
         }
@@ -177,18 +178,23 @@ struct ContentView: View {
 
     }
 
+    @State private var windowManager = WM
+    @State private var nameWidth: CGFloat = 250
+    @State private var pathWidth: CGFloat = 300
+
+    @ViewBuilder
     private var header: some View {
         HStack(spacing: 20) {
             HStack {
                 Text("Name").fontWeight(fuzzy.sortField == .name ? .bold : .medium)
                 sortButton(.name, defaultReverse: false)
             }
-            .frame(width: 250 + 32, alignment: .leading)
+            .frame(width: nameWidth + 32, alignment: .leading)
             HStack {
                 Text("Path").fontWeight(fuzzy.sortField == .path ? .bold : .medium)
                 sortButton(.path, defaultReverse: false)
             }
-            .frame(width: 300, alignment: .leading)
+            .frame(width: pathWidth, alignment: .leading)
             HStack {
                 Text("Size").fontWeight(fuzzy.sortField == .size ? .bold : .medium)
                 sortButton(.size, defaultReverse: true)
@@ -233,6 +239,16 @@ struct ContentView: View {
             return .handled
         }
         .focused($focused, equals: .list)
+        .onAppear {
+            let additionalWidth = windowManager.size.width - WindowManager.DEFAULT_SIZE.width
+            nameWidth = 250 + (additionalWidth * (1.0 / 3.0))
+            pathWidth = 300 + (additionalWidth * (2.0 / 3.0))
+        }
+        .onChange(of: windowManager.size) {
+            let additionalWidth = windowManager.size.width - WindowManager.DEFAULT_SIZE.width
+            nameWidth = 250 + (additionalWidth * (1.0 / 3.0))
+            pathWidth = 300 + (additionalWidth * (2.0 / 3.0))
+        }
     }
 
     @ViewBuilder
@@ -261,9 +277,9 @@ struct ContentView: View {
                 .resizable()
                 .frame(width: 16, height: 16)
             Text(path.name.string)
-                .frame(width: 250, alignment: .leading)
+                .frame(width: nameWidth, alignment: .leading)
             Text(path.dir.shellString)
-                .frame(width: 300, alignment: .leading)
+                .frame(width: pathWidth, alignment: .leading)
             Text((path.fileSize() ?? 0).humanSize)
                 .monospaced()
                 .frame(width: 80, alignment: .trailing)

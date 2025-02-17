@@ -11,11 +11,14 @@ import System
 let FD_BINARY = Bundle.main.url(forResource: "fd", withExtension: nil)!.existingFilePath!
 let FZF_BINARY = Bundle.main.url(forResource: "fzf", withExtension: nil)!.existingFilePath!
 let FS_IGNORE = Bundle.main.url(forResource: "fsignore", withExtension: nil)!.existingFilePath!
+let FS_IGNORE_RECENTS = Bundle.main.url(forResource: "fsignore-recents", withExtension: nil)!.existingFilePath!
 
 let FZF_API_KEY = UUID().uuidString
 
 let fsignore: FilePath = HOME / ".fsignore"
 let fsignoreString = (HOME / ".fsignore").string
+let fsignoreRecents: FilePath = HOME / ".fsignore-recents"
+let fsignoreRecentsString = (HOME / ".fsignore-recents").string
 
 let indexFolder: FilePath =
     FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
@@ -168,7 +171,21 @@ class FuzzyClient {
         }
     }
 
+    func writeFSIgnoreRecents() {
+        do {
+            let fsignoreContent = try String(contentsOf: FS_IGNORE.url)
+            let fsignoreRecentsContent = try String(contentsOf: FS_IGNORE_RECENTS.url)
+            let combinedContent = fsignoreContent + "\n" + fsignoreRecentsContent
+            try combinedContent.write(to: fsignoreRecents.url, atomically: true, encoding: .utf8)
+        } catch {
+            log.error("Failed to concatenate ignore files: \(error)")
+        }
+    }
+
     func startIndex() {
+        if !fsignoreRecents.exists {
+            writeFSIgnoreRecents()
+        }
         if !fsignore.exists {
             do {
                 try FS_IGNORE.copy(to: fsignore)
@@ -208,7 +225,7 @@ class FuzzyClient {
             queryTask?.cancel()
         }
 
-        let earliestModificationDate = !fullReindex ? nil : [homeIndex, libraryIndex, rootIndex]
+        let earliestModificationDate = fullReindex ? nil : [homeIndex, libraryIndex, rootIndex]
             .compactMap(\.modificationDate)
             .min()
 
@@ -296,7 +313,7 @@ class FuzzyClient {
                         return
                     }
 
-                    if path.starts(with: HOME), check_if_ignored(event.path, fsignoreString) {
+                    if path.starts(with: HOME), event.path.isIgnored(in: fsignoreString) {
                         return
                     }
 
@@ -328,7 +345,7 @@ class FuzzyClient {
         log.debug("Indexing files with \(fdThreads) threads")
 
         let changedWithinArg = changedWithin.map { ["--changed-within", "@\($0.timeIntervalSince1970.intround)"] } ?? []
-        let commonArgs = ["-j", "\(fdThreads)", "--one-file-system"] + changedWithinArg + ["--ignore-file", "\(HOME.string)/.fsignore"]
+        let commonArgs = ["-uu", "-j", "\(fdThreads)", "--one-file-system"] + changedWithinArg + ["--ignore-file", "\(HOME.string)/.fsignore"]
         let commands = [
             (
                 arguments: commonArgs + [
@@ -382,7 +399,7 @@ class FuzzyClient {
                     file.closeFile()
 
                     // Remove trailing slashes
-                    shellProcDevNull("/usr/bin/sed", args: ["-i", "", "s|/$||g", command.output.string])?.waitUntilExit()
+//                    shellProcDevNull("/usr/bin/sed", args: ["-i", "", "s|/$||g", command.output.string])?.waitUntilExit()
                 } catch {
                     log.error("Failed to run process: \(error)")
                 }

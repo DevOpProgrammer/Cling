@@ -51,6 +51,18 @@ struct SettingsView: View {
                 }.truncationMode(.middle)
             }
 
+            HStack {
+                (
+                    Text("Ignore File")
+                        + Text("\nUses gitignore syntax for excluding files from the index")
+                        .round(11, weight: .regular).foregroundColor(.secondary)
+                ).fixedSize()
+                Spacer()
+                Button("Edit Ignore File") {
+                    NSWorkspace.shared.open([fsignore.url], withApplicationAt: editorApp.fileURL ?? "/Applications/TextEdit.app".fileURL!, configuration: .init(), completionHandler: { _, _ in })
+                }.truncationMode(.middle)
+            }
+
             Toggle(isOn: $showWindowAtLaunch) {
                 (
                     Text("Show window at launch")

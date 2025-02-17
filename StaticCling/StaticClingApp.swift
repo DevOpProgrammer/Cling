@@ -72,6 +72,16 @@ class AppDelegate: LowtechIndieAppDelegate {
             name: NSWindow.willCloseNotification, object: nil
         )
 
+        resizeCancellable = NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)
+            .compactMap { $0.object as? NSWindow }
+            .filter { $0.title == "StaticCling" }
+            .map(\.frame.size)
+            .filter { $0 != WM.size }
+            .throttle(for: .milliseconds(80), scheduler: RunLoop.main, latest: true)
+            .sink { newSize in
+                WM.size = newSize
+            }
+
         if Defaults[.showWindowAtLaunch] {
             WM.open("main")
             mainWindow?.becomeMain()
@@ -168,36 +178,43 @@ class AppDelegate: LowtechIndieAppDelegate {
                 .nonactivatingPanel,
             ]
             window.isMovableByWindowBackground = true
+            WM.size = window.frame.size
         }
     }
 
     func updaterWillRelaunchApplication(_ updater: SPUUpdater) {
         cleanup()
     }
+
+    private var resizeCancellable: AnyCancellable?
+
 }
 
-class WindowManager: ObservableObject {
-    @Published var windowToOpen: String? = nil
+@MainActor @Observable
+class WindowManager {
+    static let DEFAULT_SIZE = CGSize(width: 1010, height: 850)
+
+    var windowToOpen: String?
+    var size = DEFAULT_SIZE
 
     func open(_ window: String) {
         windowToOpen = window
     }
 }
-let WM = WindowManager()
+@MainActor let WM = WindowManager()
 
 @main
 struct StaticClingApp: App {
     @Environment(\.openWindow) var openWindow
     @Environment(\.dismiss) var dismiss
-    @ObservedObject var wm = WM
 
     var body: some Scene {
         Window("StaticCling", id: "main") {
             ContentView()
-                .frame(minWidth: 1010, minHeight: 300)
+                .frame(minWidth: WindowManager.DEFAULT_SIZE.width, minHeight: 300)
                 .ignoresSafeArea()
         }
-        .defaultSize(width: 1010, height: 850)
+        .defaultSize(width: WindowManager.DEFAULT_SIZE.width, height: WindowManager.DEFAULT_SIZE.height)
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .help) {
@@ -230,6 +247,8 @@ struct StaticClingApp: App {
         }
         .defaultSize(width: 600, height: 600)
     }
+
+    @State private var wm = WM
 
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
 
