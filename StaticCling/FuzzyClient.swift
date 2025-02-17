@@ -43,6 +43,15 @@ enum SortField: String, CaseIterable, Identifiable {
     case date
 
     var id: String { rawValue }
+    var key: Character {
+        switch self {
+        case .score: "s"
+        case .name: "n"
+        case .path: "p"
+        case .size: "z"
+        case .date: "d"
+        }
+    }
 }
 
 @Observable @MainActor
@@ -62,6 +71,8 @@ class FuzzyClient {
     @ObservationIgnored var fetchTask: URLSessionTask?
 
     var fullDiskAccessChecker: Repeater?
+
+    @ObservationIgnored var indexChecker: Repeater?
 
     var sortField: SortField = .score {
         didSet {
@@ -172,29 +183,35 @@ class FuzzyClient {
             watchFiles()
             startServer()
         }
+
+        indexChecker = Repeater(every: 60 * 60, name: "Index Checker", tolerance: 60 * 60) { [self] in
+            refresh(fullReindex: false, pauseSearch: false)
+        }
     }
 
-    func refresh(fullReindex: Bool = false) {
+    func refresh(fullReindex: Bool = false, pauseSearch: Bool = true) {
         guard !indexing, FullDiskAccess.isGranted else {
             return
         }
 
-        indexing = true
-        operation = fullReindex ? "Reindexing all files" : "Reindexing changed files"
-        fetchTask?.cancel()
-        queryTask?.cancel()
+        if pauseSearch {
+            indexing = true
+            operation = fullReindex ? "Reindexing all files" : "Reindexing changed files"
+            fetchTask?.cancel()
+            queryTask?.cancel()
+        }
 
         let earliestModificationDate = !fullReindex ? nil : [homeIndex, libraryIndex, rootIndex]
             .compactMap(\.modificationDate)
             .min()
 
         stopWatchingFiles()
-        stopServer()
         indexFiles(changedWithin: earliestModificationDate) { [self] in
             if !fullReindex {
                 consolidateLiveIndex()
             }
             watchFiles()
+            stopServer()
             startServer()
         }
     }
@@ -527,6 +544,8 @@ class FuzzyClient {
                 }
                 return
             }
+
+            log.debug("Sent query \(query)")
             mainActor {
                 self.fetchResults()
             }

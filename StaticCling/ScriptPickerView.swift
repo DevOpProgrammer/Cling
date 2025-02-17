@@ -98,6 +98,58 @@ struct ScriptPickerView: View {
     }
 }
 
+struct ScriptActionButtons: View {
+    let selectedResults: Set<FilePath>
+    var focused: FocusState<FocusedField?>.Binding
+    @State var scriptManager = SM
+    @State private var isPresentingScriptPicker = false
+
+    var body: some View {
+        HStack {
+            runThroughScriptButton
+                .frame(width: 110, alignment: .leading)
+
+            Divider().frame(height: 16)
+
+            if scriptManager.scriptShortcuts.isEmpty {
+                Text("Script hotkeys will appear here")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10))
+            } else {
+                Text("⌘⌃  +").foregroundColor(.fg.warm)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 3) {
+                        ForEach(scriptManager.scriptShortcuts.sorted(by: \.key.lastPathComponent), id: \.0.path) { script, key in
+                            Button(action: {
+                                _ = shellProcOut(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
+                            }) {
+                                Text("\(key.uppercased()) ").mono(10, weight: .bold).foregroundColor(.fg.warm) + Text(script.lastPathComponent.ns.deletingPathExtension)
+                            }
+                        }
+                    }.buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
+                }
+            }
+        }
+        .font(.system(size: 10))
+        .buttonStyle(TextButton(color: .fg.warm.opacity(0.9)))
+        .lineLimit(1)
+    }
+
+    var runThroughScriptButton: some View {
+        Button("⌘E Execute script") {
+            focused.wrappedValue = .executeScript
+            isPresentingScriptPicker = true
+        }
+        .keyboardShortcut("e", modifiers: [.command])
+        .help("Run the selected files through a script")
+        .sheet(isPresented: $isPresentingScriptPicker) {
+            ScriptPickerView(fileURLs: selectedResults.map(\.url))
+                .font(.medium(13))
+                .focused(focused, equals: .executeScript)
+        }
+    }
+}
+
 func openInEditor(_ file: URL) {
     NSWorkspace.shared.open(
         [file],

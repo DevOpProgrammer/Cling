@@ -1,5 +1,6 @@
 import Lowtech
 import SwiftUI
+import System
 
 struct OpenWithMenuView: View {
     let fileURLs: [URL]
@@ -66,6 +67,48 @@ struct OpenWithPickerView: View {
         }
         .padding()
     }
+}
+
+struct OpenWithActionButtons: View {
+    let selectedResults: Set<FilePath>
+
+    var buttons: some View {
+        ForEach(fuzzy.openWithAppShortcuts.sorted(by: \.key.lastPathComponent), id: \.0.path) { app, key in
+            Button(action: {
+                NSWorkspace.shared.open(selectedResults.map(\.url), withApplicationAt: app, configuration: .init(), completionHandler: { _, _ in })
+            }) {
+                Text("\(key.uppercased()) ").mono(10, weight: .bold).foregroundColor(.fg.warm) + Text(app.lastPathComponent.ns.deletingPathExtension)
+            }
+        }
+        .buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
+    }
+
+    var body: some View {
+        HStack {
+            OpenWithMenuView(fileURLs: selectedResults.map(\.url))
+                .help("Open the selected files with a specific app")
+                .frame(width: 110, alignment: .leading)
+
+            Divider().frame(height: 16)
+
+            if fuzzy.openWithAppShortcuts.isEmpty {
+                Text("Open with app hotkeys will appear here")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10))
+            } else {
+                Text("⌘⌥  +").foregroundColor(.fg.warm)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 3) { buttons }
+                }
+            }
+        }
+        .font(.system(size: 10))
+        .buttonStyle(TextButton(color: .fg.warm.opacity(0.9)))
+        .lineLimit(1)
+    }
+
+    @State private var fuzzy: FuzzyClient = FUZZY
+
 }
 
 func icon(for app: URL) -> NSImage {
