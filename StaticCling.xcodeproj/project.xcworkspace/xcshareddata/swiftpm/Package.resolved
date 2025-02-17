@@ -1,5 +1,5 @@
 {
-  "originHash" : "ed16a6acc0a2e8816c563252976d11f1f37dd6c9f0cc42c1f97df32ef26ad11d",
+  "originHash" : "f5d73fe83f41d0f3fd1815656ff8c07dbeccd4db5aadbe22009c12f403e5d8ac",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -17,6 +17,15 @@
       "state" : {
         "revision" : "1fa1e9c68c27cbed56e2a997605ae2e808cf4d98",
         "version" : "1.8.2"
+      }
+    },
+    {
+      "identity" : "clopsdk",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FuzzyIdeas/ClopSDK",
+      "state" : {
+        "revision" : "6dc1b02811d1fe0d015251536a513f654aa25cd0",
+        "version" : "1.1.1"
       }
     },
     {
@@ -70,7 +79,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "4708a89872b754f4f34f7f9b3a7285880fe96c57"
+        "revision" : "b7bfe85799ee6f0a44689725da634a1b2023cb0f"
       }
     },
     {

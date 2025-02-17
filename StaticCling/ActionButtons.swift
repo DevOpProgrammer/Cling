@@ -98,6 +98,7 @@ struct ActionButtons: View {
                 .font(.medium(13))
                 .focused(focused, equals: .openWith)
         }
+        .disabled(selectedResults.isEmpty || fuzzy.openWithAppShortcuts.isEmpty)
     }
 
     @ViewBuilder

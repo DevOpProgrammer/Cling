@@ -1,3 +1,4 @@
+import ClopSDK
 import Cocoa
 import Combine
 import Foundation
@@ -56,6 +57,7 @@ enum SortField: String, CaseIterable, Identifiable {
 
 @Observable @MainActor
 class FuzzyClient {
+    var clopIsAvailable = false
     var terminal: FZFTerminal!
     var removedFiles: Set<String> = []
     var results: [FilePath] = []
@@ -132,6 +134,11 @@ class FuzzyClient {
 
     // Methods
     func start() {
+        asyncNow {
+            let clopIsAvailable = ClopSDK.shared.waitForClopToBeAvailable()
+            mainActor { self.clopIsAvailable = clopIsAvailable }
+        }
+
         FullDiskAccess.promptIfNotGranted(
             title: "Enable Full Disk Access for StaticCling",
             message: "StaticCling requires Full Disk Access to index the files on the whole disk.",
@@ -455,7 +462,7 @@ class FuzzyClient {
     }
 
     func computeOpenWithApps(for urls: [URL]) {
-        computeOpenWithTask = mainAsyncAfter(ms: 300) { [self] in
+        computeOpenWithTask = mainAsyncAfter(ms: 100) { [self] in
             commonOpenWithApps = commonApplications(for: urls).sorted(by: \.lastPathComponent)
             openWithAppShortcuts = computeShortcuts(for: commonOpenWithApps)
         }

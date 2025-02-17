@@ -77,7 +77,10 @@ struct OpenWithActionButtons: View {
             Button(action: {
                 NSWorkspace.shared.open(selectedResults.map(\.url), withApplicationAt: app, configuration: .init(), completionHandler: { _, _ in })
             }) {
-                Text("\(key.uppercased()) ").mono(10, weight: .bold).foregroundColor(.fg.warm) + Text(app.lastPathComponent.ns.deletingPathExtension)
+                HStack(spacing: 0) {
+                    Text("\(key.uppercased())").mono(10, weight: .bold).foregroundColor(.fg.warm).roundbg(color: .bg.primary.opacity(0.2))
+                    Text(" \(app.lastPathComponent.ns.deletingPathExtension)")
+                }
             }
         }
         .buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
@@ -88,6 +91,7 @@ struct OpenWithActionButtons: View {
             OpenWithMenuView(fileURLs: selectedResults.map(\.url))
                 .help("Open the selected files with a specific app")
                 .frame(width: 110, alignment: .leading)
+                .disabled(selectedResults.isEmpty || fuzzy.openWithAppShortcuts.isEmpty)
 
             Divider().frame(height: 16)
 
@@ -96,7 +100,12 @@ struct OpenWithActionButtons: View {
                     .foregroundStyle(.secondary)
                     .font(.system(size: 10))
             } else {
-                Text("⌘⌥  +").foregroundColor(.fg.warm)
+                HStack(spacing: 1) {
+                    Text("⌘").roundbg(color: .bg.primary.opacity(0.2))
+                    Text("⌥").roundbg(color: .bg.primary.opacity(0.2))
+                    Text(" +")
+                }.foregroundColor(.fg.warm)
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) { buttons }
                 }

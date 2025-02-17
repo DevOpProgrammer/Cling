@@ -53,7 +53,7 @@ struct ContentView: View {
                     guard focused == .list else {
                         return .ignored
                     }
-                    quicklook()
+                    QuickLooker.quicklook(urls: selectedResults.map(\.url))
                     return .handled
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))

@@ -1,3 +1,4 @@
+import ClopSDK
 import Defaults
 import Lowtech
 import SwiftUI
@@ -101,8 +102,6 @@ struct ScriptPickerView: View {
 struct ScriptActionButtons: View {
     let selectedResults: Set<FilePath>
     var focused: FocusState<FocusedField?>.Binding
-    @State var scriptManager = SM
-    @State private var isPresentingScriptPicker = false
 
     var body: some View {
         HStack {
@@ -115,18 +114,50 @@ struct ScriptActionButtons: View {
                 Text("Script hotkeys will appear here")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 10))
+                Spacer()
             } else {
-                Text("⌘⌃  +").foregroundColor(.fg.warm)
+                HStack(spacing: 1) {
+                    Text("⌘").roundbg(color: .bg.primary.opacity(0.2))
+                    Text("⌃").roundbg(color: .bg.primary.opacity(0.2))
+                    Text(" +")
+                }.foregroundColor(.fg.warm)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) {
                         ForEach(scriptManager.scriptShortcuts.sorted(by: \.key.lastPathComponent), id: \.0.path) { script, key in
                             Button(action: {
                                 _ = shellProcOut(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
                             }) {
-                                Text("\(key.uppercased()) ").mono(10, weight: .bold).foregroundColor(.fg.warm) + Text(script.lastPathComponent.ns.deletingPathExtension)
+                                HStack(spacing: 0) {
+                                    Text("\(key.uppercased())").mono(10, weight: .bold).foregroundColor(.fg.warm).roundbg(color: .bg.primary.opacity(0.2))
+                                    Text(" \(script.lastPathComponent.ns.deletingPathExtension)")
+                                }
                             }
                         }
                     }.buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
+                }
+            }
+
+            if fuzzy.clopIsAvailable {
+                let clopCandidates = selectedResults.map(\.url).filter(\.memoz.canBeOptimisedByClop)
+                if clopCandidates.isNotEmpty {
+                    let oKeyAvailable = !scriptManager.scriptShortcuts.values.contains("o")
+                    Button(action: {
+                        _ = try? ClopSDK.shared.optimise(
+                            paths: clopCandidates.map(\.path),
+                            aggressive: NSEvent.modifierFlags.contains(.option),
+                            inTheBackground: true
+                        )
+                    }) {
+                        if oKeyAvailable {
+                            Text("⌘⌃O").mono(10, weight: .bold).foregroundColor(.fg.warm.opacity(0.8)) + Text(" Optimise with Clop")
+                        } else {
+                            Text("Optimise with Clop")
+                        }
+                    }
+                    .buttonStyle(TextButton(color: .fg.warm.opacity(0.8)))
+                    .if(oKeyAvailable) {
+                        $0.keyboardShortcut("o", modifiers: [.command, .control])
+                    }
                 }
             }
         }
@@ -148,6 +179,11 @@ struct ScriptActionButtons: View {
                 .focused(focused, equals: .executeScript)
         }
     }
+
+    @State private var scriptManager = SM
+    @State private var fuzzy = FUZZY
+    @State private var isPresentingScriptPicker = false
+
 }
 
 func openInEditor(_ file: URL) {
