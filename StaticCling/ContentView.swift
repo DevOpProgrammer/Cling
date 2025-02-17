@@ -40,118 +40,6 @@ struct ContentView: View {
     @Environment(\.dismiss) var dismiss
     @ObservedObject var km = KM
 
-    var searchSection: some View {
-        HStack {
-            ZStack(alignment: .trailing) {
-                searchBar
-                HStack {
-                    Text("press / to focus")
-                        .round(10)
-                        .foregroundStyle(.secondary)
-                    xButton
-                }.offset(x: -10)
-            }
-        }
-    }
-    var searchBar: some View {
-        TextField("Search", text: $query)
-            .textFieldStyle(.roundedBorder)
-            .padding(.vertical)
-            .onChange(of: query) { _, newValue in
-                fuzzy.querySendTask = mainAsyncAfter(ms: 150) {
-                    fuzzy.sendQuery(newValue)
-                }
-                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 1000) {
-                    fuzzy.sendQuery(newValue)
-                }
-            }
-            .focused($focused, equals: .search)
-            .onKeyPress(.downArrow) {
-                focused = .list
-                return .handled
-            }
-            .onKeyPress(.tab) {
-                focused = .list
-                return .handled
-            }
-    }
-
-    var xButton: some View {
-        Button(action: {
-            if query.isEmpty {
-                dismiss()
-                appManager.lastFrontmostApp?.activate()
-            } else {
-                query = ""
-            }
-        }) {
-            Image(systemName: "xmark.circle.fill")
-        }
-        .buttonStyle(.plain)
-        .foregroundColor(.secondary)
-        .keyboardShortcut(.cancelAction)
-        .focusable(false)
-
-    }
-
-    var header: some View {
-        HStack(spacing: 20) {
-            HStack {
-                Text("Name").fontWeight(fuzzy.sortField == .name ? .bold : .medium)
-                sortButton(.name, defaultReverse: false)
-            }
-            .frame(width: 250 + 32, alignment: .leading)
-            HStack {
-                Text("Path").fontWeight(fuzzy.sortField == .path ? .bold : .medium)
-                sortButton(.path, defaultReverse: false)
-            }
-            .frame(width: 300, alignment: .leading)
-            HStack {
-                Text("Size").fontWeight(fuzzy.sortField == .size ? .bold : .medium)
-                sortButton(.size, defaultReverse: true)
-            }
-            .frame(width: 80, alignment: .trailing)
-            HStack {
-                Text("Date Modified").fontWeight(fuzzy.sortField == .date ? .bold : .medium)
-                sortButton(.date, defaultReverse: true)
-            }
-            .frame(width: 160, alignment: .leading)
-
-            Button(action: {
-                fuzzy.sortField = .score
-                fuzzy.reverseSort = true
-            }) {
-                Image(systemName: "flag.pattern.checkered.circle" + (fuzzy.sortField == .score ? ".fill" : ""))
-                    .font(.system(size: 20))
-                    .opacity(fuzzy.sortField == .score ? 1 : 0.5)
-                    .help("Sort by score")
-            }
-            .buttonStyle(TextButton(borderColor: .clear))
-
-        }.hfill(.leading)
-    }
-
-    @ViewBuilder
-    var resultsList: some View {
-        header.frame(height: 20, alignment: .leading).padding(.leading, 16)
-        List(selection: $selectedResults) {
-            ForEach(fuzzy.results, id: \.self) { filepath in
-                row(filepath).tag(filepath.string)
-            }
-        }
-        .onChange(of: fuzzy.results) {
-            selectFirstResult()
-        }
-        .onChange(of: selectedResults) {
-            fuzzy.computeOpenWithApps(for: selectedResults.map(\.url))
-        }
-        .onKeyPress(.tab) {
-            focused = .search
-            return .handled
-        }
-        .focused($focused, equals: .list)
-    }
-
     var body: some View {
         VStack {
             searchSection
@@ -224,8 +112,131 @@ struct ContentView: View {
         }
     }
 
+    @FocusState private var focused: FocusedField?
+
+    @State private var appManager = APP_MANAGER
+    @State private var renamedPaths: [FilePath]? = nil
+    @State private var fuzzy: FuzzyClient = FUZZY
+    @State private var scriptManager: ScriptManager = SM
+    @State private var query = ""
+    @State private var selectedResults = Set<FilePath>()
+
+    @Default(.terminalApp) private var terminalApp
+
+    private var searchSection: some View {
+        HStack {
+            ZStack(alignment: .trailing) {
+                searchBar
+                HStack {
+                    Text("press / to focus")
+                        .round(10)
+                        .foregroundStyle(.secondary)
+                    xButton
+                }.offset(x: -10)
+            }
+        }
+    }
+    private var searchBar: some View {
+        TextField("Search", text: $query)
+            .textFieldStyle(.roundedBorder)
+            .padding(.vertical)
+            .onChange(of: query) { _, newValue in
+                fuzzy.querySendTask = mainAsyncAfter(ms: 150) {
+                    fuzzy.sendQuery(newValue)
+                }
+                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 1000) {
+                    fuzzy.sendQuery(newValue)
+                }
+            }
+            .focused($focused, equals: .search)
+            .onKeyPress(.downArrow) {
+                focused = .list
+                return .handled
+            }
+            .onKeyPress(.tab) {
+                focused = .list
+                return .handled
+            }
+    }
+
+    private var xButton: some View {
+        Button(action: {
+            if query.isEmpty {
+                dismiss()
+                appManager.lastFrontmostApp?.activate()
+            } else {
+                query = ""
+            }
+        }) {
+            Image(systemName: "xmark.circle.fill")
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.secondary)
+        .keyboardShortcut(.cancelAction)
+        .focusable(false)
+
+    }
+
+    private var header: some View {
+        HStack(spacing: 20) {
+            HStack {
+                Text("Name").fontWeight(fuzzy.sortField == .name ? .bold : .medium)
+                sortButton(.name, defaultReverse: false)
+            }
+            .frame(width: 250 + 32, alignment: .leading)
+            HStack {
+                Text("Path").fontWeight(fuzzy.sortField == .path ? .bold : .medium)
+                sortButton(.path, defaultReverse: false)
+            }
+            .frame(width: 300, alignment: .leading)
+            HStack {
+                Text("Size").fontWeight(fuzzy.sortField == .size ? .bold : .medium)
+                sortButton(.size, defaultReverse: true)
+            }
+            .frame(width: 80, alignment: .trailing)
+            HStack {
+                Text("Date Modified").fontWeight(fuzzy.sortField == .date ? .bold : .medium)
+                sortButton(.date, defaultReverse: true)
+            }
+            .frame(width: 160, alignment: .leading)
+
+            Button(action: {
+                fuzzy.sortField = .score
+                fuzzy.reverseSort = true
+            }) {
+                Image(systemName: "flag.pattern.checkered.circle" + (fuzzy.sortField == .score ? ".fill" : ""))
+                    .font(.system(size: 20))
+                    .opacity(fuzzy.sortField == .score ? 1 : 0.5)
+                    .help("Sort by score")
+            }
+            .buttonStyle(TextButton(borderColor: .clear))
+
+        }.hfill(.leading)
+    }
+
     @ViewBuilder
-    func sortButton(_ sorter: SortField, defaultReverse: Bool) -> some View {
+    private var resultsList: some View {
+        header.frame(height: 20, alignment: .leading).padding(.leading, 16)
+        List(selection: $selectedResults) {
+            ForEach(fuzzy.results, id: \.self) { filepath in
+                row(filepath).tag(filepath.string)
+            }
+        }
+        .onChange(of: fuzzy.results) {
+            selectFirstResult()
+        }
+        .onChange(of: selectedResults) {
+            fuzzy.computeOpenWithApps(for: selectedResults.map(\.url))
+        }
+        .onKeyPress(.tab) {
+            focused = .search
+            return .handled
+        }
+        .focused($focused, equals: .list)
+    }
+
+    @ViewBuilder
+    private func sortButton(_ sorter: SortField, defaultReverse: Bool) -> some View {
         let action = {
             if fuzzy.sortField == sorter {
                 fuzzy.reverseSort.toggle()
@@ -243,17 +254,6 @@ struct ContentView: View {
         .buttonStyle(TextButton(borderColor: .clear))
 //        .keyboardShortcut(KeyEquivalent(sorter.key), modifiers: [.shift])
     }
-
-    @FocusState private var focused: FocusedField?
-
-    @State private var appManager = APP_MANAGER
-    @State private var renamedPaths: [FilePath]? = nil
-    @State private var fuzzy: FuzzyClient = FUZZY
-    @State private var scriptManager: ScriptManager = SM
-    @State private var query = ""
-    @State private var selectedResults = Set<FilePath>()
-
-    @Default(.terminalApp) private var terminalApp
 
     private func row(_ path: FilePath) -> some View {
         HStack(spacing: 20) {
@@ -281,46 +281,6 @@ struct ContentView: View {
         } else {
             selectedResults.removeAll()
         }
-    }
-
-    private func openSelectedResults() {
-        for url in selectedResults.map(\.url) {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    private func copyFiles() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects(selectedResults.map(\.url) as [NSPasteboardWriting])
-    }
-
-    private func copyPaths() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(
-            appManager.frontmostAppIsTerminal
-                ? selectedResults.map { $0.shellString.replacingOccurrences(of: " ", with: "\\ ") }.joined(separator: " ")
-                : selectedResults.map(\.string).joined(separator: "\n"), forType: .string
-        )
-    }
-
-    private func moveToTrash() {
-        var removed = Set<FilePath>()
-        for path in selectedResults {
-            log.info("Trashing \(path.shellString)")
-            do {
-                try FileManager.default.trashItem(at: path.url, resultingItemURL: nil)
-                removed.insert(path)
-            } catch {
-                log.error("Error trashing \(path.shellString): \(error)")
-            }
-        }
-
-        selectedResults.subtract(removed)
-        fuzzy.results = fuzzy.results.filter { !removed.contains($0) && $0.exists }
-    }
-
-    private func quicklook() {
-        QuickLooker.quicklook(urls: selectedResults.map(\.url))
     }
 }
 
