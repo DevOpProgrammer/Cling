@@ -21,7 +21,55 @@ class ScriptManager {
 
     var scriptShortcuts: [URL: Character] = [:]
     var scriptURLs: [URL] = []
+    var lastScript: URL?
+    var lastOutputFile: FilePath?
+    var lastErrorFile: FilePath?
     @ObservationIgnored var shellEnv: [String: String]? = nil
+
+    @ObservationIgnored lazy var combinedOutputFile: FilePath? = createCombinedOutputFile()
+
+    var process: Process? {
+        didSet {
+            guard let process else {
+                return
+            }
+            combinedOutputFile = nil
+            lastOutputFile = process.stdoutFilePath?.existingFilePath
+            lastErrorFile = process.stderrFilePath?.existingFilePath
+            process.terminationHandler = { [self] process in
+                mainActor {
+                    log.verbose("Script \(self.lastScript?.lastPathComponent ?? "unknown") terminated with status \(process.terminationStatus)")
+                    self.process = nil
+                    clearLastProcessTask = mainAsyncAfter(30) {
+                        self.clearLastProcess()
+                    }
+                }
+            }
+        }
+    }
+
+    func clearLastProcess() {
+        process = nil
+        lastScript = nil
+        lastOutputFile = nil
+        lastErrorFile = nil
+        combinedOutputFile = nil
+    }
+
+    func createCombinedOutputFile() -> FilePath? {
+        guard let output = lastOutputFile, let error = lastErrorFile else {
+            return nil
+        }
+        let combined = output.withExtension("combined")
+        _ = try? output.copy(to: combined)
+        if let handle = try? FileHandle(forUpdating: combined.url) {
+            handle.seekToEndOfFile()
+            handle.write("\n\n--------\n\nSTDERR:\n\n".data(using: .utf8)!)
+            try? handle.write(Data(contentsOf: error.url))
+            handle.closeFile()
+        }
+        return combined
+    }
 
     func fetchScripts() {
         do {
@@ -56,6 +104,12 @@ class ScriptManager {
             }
         } catch {
             log.error("Failed to watch scripts folder \(scriptsFolder.shellString): \(error)")
+        }
+    }
+
+    @ObservationIgnored private var clearLastProcessTask: DispatchWorkItem? {
+        didSet {
+            oldValue?.cancel()
         }
     }
 

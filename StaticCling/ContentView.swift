@@ -75,13 +75,14 @@ struct ContentView: View {
             focused = .search
         }
         .onKeyPress(keys: Set(scriptManager.scriptShortcuts.values.map { KeyEquivalent($0) }), phases: [.down]) { keyPress in
-            guard keyPress.modifiers == [.command, .control] else { return .ignored }
+            guard scriptManager.process == nil, keyPress.modifiers == [.command, .control] else { return .ignored }
 
             guard let script = scriptManager.scriptShortcuts.first(where: { $0.value == keyPress.key.character })?.key else {
                 return .ignored
             }
 
-            _ = shellProcOut(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
+            scriptManager.lastScript = script
+            scriptManager.process = shellProc(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
             return .handled
         }
         .onKeyPress(keys: Set(fuzzy.openWithAppShortcuts.values.map { KeyEquivalent($0) }), phases: [.down]) { keyPress in
@@ -145,7 +146,8 @@ struct ContentView: View {
                 fuzzy.querySendTask = mainAsyncAfter(ms: 150) {
                     fuzzy.sendQuery(newValue)
                 }
-                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 1000) {
+                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 500) {
+                    fuzzy.fetchResults()
                     fuzzy.sendQuery(newValue)
                 }
             }

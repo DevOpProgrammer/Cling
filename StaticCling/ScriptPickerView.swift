@@ -16,7 +16,8 @@ struct ScriptPickerView: View {
     func scriptButton(_ script: URL) -> some View {
         HStack {
             Button(action: {
-                _ = shellProcOut(script.path, args: fileURLs.map(\.path), env: scriptManager.shellEnv)
+                scriptManager.lastScript = script
+                scriptManager.process = shellProc(script.path, args: fileURLs.map(\.path), env: scriptManager.shellEnv)
                 dismiss()
             }) {
                 HStack {
@@ -113,6 +114,7 @@ struct ScriptActionButtons: View {
         HStack {
             runThroughScriptButton
                 .frame(width: 110, alignment: .leading)
+                .disabled(selectedResults.isEmpty || scriptManager.process != nil)
 
             Divider().frame(height: 16)
 
@@ -127,52 +129,174 @@ struct ScriptActionButtons: View {
                     Text("⌃").roundbg(color: .bg.primary.opacity(0.2))
                     Text(" +")
                 }.foregroundColor(.fg.warm)
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) {
                         ForEach(scriptManager.scriptShortcuts.sorted(by: \.key.lastPathComponent), id: \.0.path) { script, key in
-                            Button(action: {
-                                _ = shellProcOut(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
-                            }) {
-                                HStack(spacing: 0) {
-                                    Text("\(key.uppercased())").mono(10, weight: .bold).foregroundColor(.fg.warm).roundbg(color: .bg.primary.opacity(0.2))
-                                    Text(" \(script.lastPathComponent.ns.deletingPathExtension)")
-                                }
-                            }
+                            scriptButton(script, key: key)
                         }
                     }.buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
-                }
+                }.disabled(selectedResults.isEmpty || scriptManager.process != nil)
             }
 
-            if fuzzy.clopIsAvailable {
-                let clopCandidates = selectedResults.map(\.url).filter(\.memoz.canBeOptimisedByClop)
-                if clopCandidates.isNotEmpty {
-                    let oKeyAvailable = !scriptManager.scriptShortcuts.values.contains("o")
-                    Button(action: {
-                        _ = try? ClopSDK.shared.optimise(
-                            paths: clopCandidates.map(\.path),
-                            aggressive: NSEvent.modifierFlags.contains(.option),
-                            inTheBackground: true
-                        )
-                    }) {
-                        if oKeyAvailable {
-                            Text("⌘⌃O").mono(10, weight: .bold).foregroundColor(.fg.warm.opacity(0.8)) + Text(" Optimise with Clop")
-                        } else {
-                            Text("Optimise with Clop")
-                        }
-                    }
-                    .buttonStyle(TextButton(color: .fg.warm.opacity(0.8)))
-                    .if(oKeyAvailable) {
-                        $0.keyboardShortcut("o", modifiers: [.command, .control])
-                    }
-                }
-            }
+            runningProcessButton
+            clopButton
         }
         .font(.system(size: 10))
         .buttonStyle(TextButton(color: .fg.warm.opacity(0.9)))
         .lineLimit(1)
     }
 
-    var runThroughScriptButton: some View {
+    func outputView(output: String?, error: String?, path: FilePath?) -> some View {
+        VStack(spacing: 5) {
+            HStack {
+                Button(action: { showOutput = false }) {
+                    Image(systemName: "xmark")
+                        .font(.heavy(7))
+                        .foregroundColor(.bg.warm)
+                }
+                .buttonStyle(FlatButton(color: .fg.warm.opacity(0.6), circle: true, horizontalPadding: 5, verticalPadding: 5))
+                .padding(.top, 8).padding(.leading, 8)
+                Spacer()
+            }
+
+            if let output, output.isNotEmpty {
+                ScrollView {
+                    VStack(alignment: .leading) {
+                        Text("OUTPUT")
+                            .font(.bold(10))
+                            .foregroundColor(.secondary)
+                        Text(output)
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                            .monospaced()
+                            .fill(.topLeading)
+                    }.frame(maxWidth: .infinity)
+                }
+                .roundbg(radius: 12, color: .bg.primary.opacity(0.1))
+                .padding(.bottom).padding(.horizontal, 25)
+            }
+
+            if let error, error.isNotEmpty {
+                ScrollView {
+                    VStack(alignment: .leading) {
+                        Text("ERRORS")
+                            .font(.bold(10))
+                            .foregroundColor(.secondary)
+                        Text(error)
+                            .lineLimit(nil)
+                            .multilineTextAlignment(.leading)
+                            .monospaced()
+                            .fill(.topLeading)
+                    }.frame(maxWidth: .infinity)
+                }
+                .roundbg(radius: 12, color: .bg.primary.opacity(0.1))
+                .padding(.bottom).padding(.horizontal, 25)
+            }
+
+            if let path {
+                Button("Open in editor") {
+                    path.edit()
+                }
+                .padding(4)
+            }
+        }.frame(width: 600, height: 300, alignment: .topLeading)
+    }
+
+    @State private var showOutput = false
+
+    @State private var scriptManager = SM
+    @State private var fuzzy = FUZZY
+    @State private var isPresentingScriptPicker = false
+
+    @ViewBuilder
+    private var runningProcessButton: some View {
+        HStack(spacing: 0) {
+            if let script = scriptManager.lastScript, let outputFile = scriptManager.lastOutputFile, let errorFile = scriptManager.lastErrorFile {
+                Button(action: {
+                    if let process = scriptManager.process {
+                        process.terminate()
+                    } else {
+                        scriptManager.clearLastProcess()
+                    }
+                }) {
+                    Image(systemName: "xmark").font(.heavy(10))
+                }
+                .buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
+                .help(scriptManager.process != nil ? "Terminate script" : "Clear process output")
+
+                Button(action: {
+                    let outSize = outputFile.fileSize() ?? 0
+                    let errSize = errorFile.fileSize() ?? 0
+
+                    guard outSize + errSize > 0 else {
+                        return
+                    }
+
+                    if outSize + errSize < 100 * 1024 {
+                        showOutput = true
+                    } else {
+                        scriptManager.combinedOutputFile?.edit()
+                    }
+                }) {
+                    HStack(spacing: 1) {
+                        if scriptManager.process != nil {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.mini)
+                                .padding(.trailing, 5)
+
+                        }
+                        Text(script.lastPathComponent.ns.deletingPathExtension)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .buttonStyle(TextButton(color: .fg.warm.opacity(0.8)))
+                .sheet(isPresented: $showOutput) {
+                    let output = (try? String(contentsOf: outputFile.url))?.trimmed
+                    let error = (try? String(contentsOf: errorFile.url))?.trimmed
+
+                    if let output, let error {
+                        outputView(output: output, error: error, path: scriptManager.combinedOutputFile)
+                    } else {
+                        Text("No output").padding()
+                    }
+                }
+                .help("View script output and errors")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var clopButton: some View {
+        if fuzzy.clopIsAvailable {
+            let clopCandidates = selectedResults.map(\.url).filter(\.memoz.canBeOptimisedByClop)
+            if clopCandidates.isNotEmpty {
+                let oKeyAvailable = !scriptManager.scriptShortcuts.values.contains("o")
+                Button(action: {
+                    _ = try? ClopSDK.shared.optimise(
+                        paths: clopCandidates.map(\.path),
+                        aggressive: NSEvent.modifierFlags.contains(.option),
+                        inTheBackground: true
+                    )
+                }) {
+                    if oKeyAvailable {
+                        Text("⌘⌃O").mono(10, weight: .bold).foregroundColor(.fg.warm.opacity(0.8)) + Text(" Optimise with Clop")
+                    } else {
+                        Text("Optimise with Clop")
+                    }
+                }
+                .buttonStyle(TextButton(color: .fg.warm.opacity(0.8)))
+                .if(oKeyAvailable) {
+                    $0.keyboardShortcut("o", modifiers: [.command, .control])
+                }
+            }
+        }
+
+    }
+
+    private var runThroughScriptButton: some View {
         Button("⌘E Execute script") {
             focused.wrappedValue = .executeScript
             isPresentingScriptPicker = true
@@ -186,9 +310,17 @@ struct ScriptActionButtons: View {
         }
     }
 
-    @State private var scriptManager = SM
-    @State private var fuzzy = FUZZY
-    @State private var isPresentingScriptPicker = false
+    private func scriptButton(_ script: URL, key: Character) -> some View {
+        Button(action: {
+            scriptManager.lastScript = script
+            scriptManager.process = shellProc(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
+        }) {
+            HStack(spacing: 0) {
+                Text("\(key.uppercased())").mono(10, weight: .bold).foregroundColor(.fg.warm).roundbg(color: .bg.primary.opacity(0.2))
+                Text(" \(script.lastPathComponent.ns.deletingPathExtension)")
+            }
+        }
+    }
 
 }
 
