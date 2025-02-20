@@ -40,6 +40,10 @@ struct ScriptPickerView: View {
                 Image(systemName: "pencil")
             }
             .buttonStyle(FlatButton(color: .bg.primary.opacity(0.4), textColor: .primary))
+            .ifLet(scriptManager.scriptShortcuts[script]) {
+                $0.keyboardShortcut(KeyEquivalent($1), modifiers: [.command, .shift])
+                    .help("Edit script in \(Defaults[.editorApp].filePath?.stem ?? "TextEdit") (⌘⇧\($1)")
+            }
         }
     }
 
@@ -65,11 +69,13 @@ struct ScriptPickerView: View {
             }
 
             HStack {
-                Button("Create Script") { isShowingAddScript = true }
-                Button("Open script folder") {
+                Button("⌘N Create Script") { isShowingAddScript = true }
+                    .keyboardShortcut("n", modifiers: [.command])
+                Button("⌘O Open script folder") {
                     NSWorkspace.shared.open(scriptsFolder.url)
                     NSApp.deactivate()
                 }
+                .keyboardShortcut("o", modifiers: [.command])
             }
             .padding(.top)
         }
@@ -235,14 +241,15 @@ struct AddScriptView: View {
                 Button {
                     cancel()
                 } label: {
-                    Label("Cancel", systemImage: "xmark.circle")
+                    Label("Cancel", systemImage: "escape")
                 }
                 Button {
                     dismiss()
                     NSApp.deactivate()
                 } label: {
-                    Label("Save", systemImage: "checkmark.circle")
+                    Text("⌘S Save")
                 }
+                .keyboardShortcut("s")
             }
         }
         .onExitCommand {
