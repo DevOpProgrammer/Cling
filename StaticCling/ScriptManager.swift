@@ -19,8 +19,16 @@ class ScriptManager {
         startScriptsWatcher()
     }
 
+    // reads the script
+    // finds the line that starts with symbols, whitespace and then extensions: and returns the extensions
+    // the line can start with any symbol like #, //, --, etc
+    // the extensions can be separated by commas or spaces
+
+    static let EXTENSIONS_REGEX: Regex<(Substring, Substring)> = try! Regex(#"^[^a-z0-9\n]+extensions:\s*([a-z0-9\-\., \t]*)"#).anchorsMatchLineEndings().ignoresCase()
+
     var scriptShortcuts: [URL: Character] = [:]
     var scriptURLs: [URL] = []
+    var scriptsByExtension: [String: [URL]] = [:]
     var lastScript: URL?
     var lastOutputFile: FilePath?
     var lastErrorFile: FilePath?
@@ -40,7 +48,7 @@ class ScriptManager {
                 mainActor {
                     log.verbose("Script \(self.lastScript?.lastPathComponent ?? "unknown") terminated with status \(process.terminationStatus)")
                     self.process = nil
-                    clearLastProcessTask = mainAsyncAfter(30) {
+                    self.clearLastProcessTask = mainAsyncAfter(30) {
                         self.clearLastProcess()
                     }
                 }
@@ -71,6 +79,41 @@ class ScriptManager {
         return combined
     }
 
+    func getScriptExtensions(_ script: URL) {
+        guard let scriptContents = try? String(contentsOf: script) else {
+            return
+        }
+        guard let match = try? Self.EXTENSIONS_REGEX.firstMatch(in: scriptContents) else {
+            scriptsByExtension["ALL"] = (scriptsByExtension["ALL"] ?? []) + [script]
+            return
+        }
+        let extensions = match.1
+            .split(separator: ",").flatMap { $0.split(separator: " ") }
+            .map { $0.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters)) }
+
+        for ext in extensions {
+            scriptsByExtension[String(ext)] = (scriptsByExtension[String(ext)] ?? []) + [script]
+        }
+    }
+
+    func run(script: URL, args: [String]) {
+        guard script.fileExists else {
+            log.error("Script not found: \(script)")
+            return
+        }
+        lastScript = script
+        process = shellProc(script.path, args: args, env: shellEnv)
+    }
+
+    func commonScripts(for exts: [String]) -> [URL] {
+        let scriptSets = exts.compactMap { scriptsByExtension[$0]?.set }
+        guard let first = scriptSets.first else {
+            return scriptsByExtension["ALL"] ?? []
+        }
+
+        return scriptSets.dropFirst().reduce(first) { $0.intersection($1) }.union(scriptsByExtension["ALL"] ?? []).arr
+    }
+
     func fetchScripts() {
         do {
             // Fetch only executable files
@@ -78,6 +121,12 @@ class ScriptManager {
             scriptURLs = files.filter {
                 (try? $0.resourceValues(forKeys: [.isExecutableKey]).isExecutable) ?? false
             }
+
+            scriptsByExtension = [:]
+            for script in scriptURLs {
+                getScriptExtensions(script)
+            }
+
             scriptShortcuts = computeShortcuts(for: scriptURLs)
         } catch {
             scriptURLs = []

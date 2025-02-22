@@ -16,8 +16,7 @@ struct ScriptPickerView: View {
     func scriptButton(_ script: URL) -> some View {
         HStack {
             Button(action: {
-                scriptManager.lastScript = script
-                scriptManager.process = shellProc(script.path, args: fileURLs.map(\.path), env: scriptManager.shellEnv)
+                scriptManager.run(script: script, args: fileURLs.map(\.path))
                 dismiss()
             }) {
                 HStack {
@@ -48,8 +47,9 @@ struct ScriptPickerView: View {
         }
     }
 
+    @ViewBuilder
     var scriptList: some View {
-        ForEach(scriptManager.scriptURLs.filter(\.fileExists), id: \.path) { script in
+        ForEach(scriptManager.scriptURLs.sorted(by: \.lastPathComponent), id: \.path) { script in
             scriptButton(script)
         }.focusable(false)
     }
@@ -118,7 +118,7 @@ struct ScriptActionButtons: View {
 
             Divider().frame(height: 16)
 
-            if scriptManager.scriptShortcuts.isEmpty {
+            if commonScripts.isEmpty {
                 Text("Script hotkeys will appear here")
                     .foregroundStyle(.secondary)
                     .font(.system(size: 10))
@@ -132,9 +132,7 @@ struct ScriptActionButtons: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) {
-                        ForEach(scriptManager.scriptShortcuts.sorted(by: \.key.lastPathComponent), id: \.0.path) { script, key in
-                            scriptButton(script, key: key)
-                        }
+                        scriptList
                     }.buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
                 }.disabled(selectedResults.isEmpty || scriptManager.process != nil)
             }
@@ -145,6 +143,23 @@ struct ScriptActionButtons: View {
         .font(.system(size: 10))
         .buttonStyle(TextButton(color: .fg.warm.opacity(0.9)))
         .lineLimit(1)
+        .onAppear {
+            let extensions = selectedResults.compactMap(\.extension).uniqued
+            commonScripts = scriptManager.commonScripts(for: extensions).sorted(by: \.lastPathComponent)
+        }
+        .onChange(of: selectedResults) {
+            let extensions = selectedResults.compactMap(\.extension).uniqued
+            commonScripts = scriptManager.commonScripts(for: extensions).sorted(by: \.lastPathComponent)
+        }
+    }
+
+    @ViewBuilder
+    var scriptList: some View {
+        ForEach(commonScripts, id: \.path) { script in
+            if let key = scriptManager.scriptShortcuts[script] {
+                scriptButton(script, key: key)
+            }
+        }
     }
 
     func outputView(output: String?, error: String?, path: FilePath?) -> some View {
@@ -202,6 +217,8 @@ struct ScriptActionButtons: View {
             }
         }.frame(width: 600, height: 300, alignment: .topLeading)
     }
+
+    @State private var commonScripts: [URL] = []
 
     @State private var showOutput = false
 
@@ -312,8 +329,7 @@ struct ScriptActionButtons: View {
 
     private func scriptButton(_ script: URL, key: Character) -> some View {
         Button(action: {
-            scriptManager.lastScript = script
-            scriptManager.process = shellProc(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
+            scriptManager.run(script: script, args: selectedResults.map(\.string))
         }) {
             HStack(spacing: 0) {
                 Text("\(key.uppercased())").mono(10, weight: .bold).foregroundColor(.fg.warm).roundbg(color: .bg.primary.opacity(0.2))

@@ -79,6 +79,8 @@ class FuzzyClient {
 
     @ObservationIgnored var indexChecker: Repeater?
 
+    var folderFilter: FolderFilter?
+
     var sortField: SortField = .score {
         didSet {
             guard sortField != oldValue else {
@@ -150,6 +152,7 @@ class FuzzyClient {
             canBeSuppressed: false,
             icon: nil
         )
+        FUZZY_SERVER.start()
 
         terminal = FZFTerminal { exitCode in
             log.debug("Terminal exited with code: \(exitCode ?? 0)")
@@ -322,6 +325,10 @@ class FuzzyClient {
                         liveIndexFile.write(data)
                     } else {
                         removedFiles.insert(path.string)
+                        if let index = scoredResults.firstIndex(of: path) {
+                            scoredResults.remove(at: index)
+                            results = sortedResults()
+                        }
                     }
                 }
             }
@@ -429,7 +436,7 @@ class FuzzyClient {
             .map { "\"\($0.string)\"" }
             .joined(separator: " ")
         let command =
-            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --listen=localhost:7272"
+            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent(echo -n '' | nc -w 1 localhost \(SERVER_PORT))' --listen=localhost:7272"
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color") + [
             "FZF_API_KEY=\(FZF_API_KEY)",
             "FZF_COLUMNS=80",
@@ -488,6 +495,7 @@ class FuzzyClient {
     func fetchResults() {
         fetchTask?.cancel()
         guard !indexing else {
+            log.debug("Indexing files, skipping fetch")
             return
         }
 
@@ -509,6 +517,7 @@ class FuzzyClient {
                 let response = try JSONDecoder().decode(FzfResponse.self, from: data)
                 mainActor {
                     let results = NSMutableOrderedSet(array: response.matches.prefix(30).map(\.text))
+
                     results.minusSet(HARD_IGNORED)
                     if !self.removedFiles.isEmpty {
                         results.minusSet(self.removedFiles)
@@ -553,6 +562,15 @@ class FuzzyClient {
             return
         }
 
+        var query = query
+        if let filter = folderFilter {
+            let folders = filter.folders.map { "^\($0.string)" }.joined(separator: " | ")
+            query = "\(folders) \(query)"
+        }
+        if query.contains("~/") {
+            query = query.replacingOccurrences(of: "~/", with: "\(HOME.string)/")
+        }
+
         var request = URLRequest(url: FZF_URL)
         request.httpMethod = "POST"
         request.addValue(FZF_API_KEY, forHTTPHeaderField: "x-api-key")
@@ -570,9 +588,6 @@ class FuzzyClient {
             }
 
             log.debug("Sent query \(query)")
-            mainActor {
-                self.fetchResults()
-            }
         }
         queryTask!.resume()
     }

@@ -80,9 +80,8 @@ struct ContentView: View {
             guard let script = scriptManager.scriptShortcuts.first(where: { $0.value == keyPress.key.character })?.key else {
                 return .ignored
             }
+            scriptManager.run(script: script, args: selectedResults.map(\.string))
 
-            scriptManager.lastScript = script
-            scriptManager.process = shellProc(script.path, args: selectedResults.map(\.string), env: scriptManager.shellEnv)
             return .handled
         }
         .onKeyPress(keys: Set(fuzzy.openWithAppShortcuts.values.map { KeyEquivalent($0) }), phases: [.down]) { keyPress in
@@ -124,11 +123,64 @@ struct ContentView: View {
     @State private var selectedResults = Set<FilePath>()
 
     @Default(.terminalApp) private var terminalApp
+    @Default(.folderFilters) private var folderFilters
+
+    private var folderFilterPicker: some View {
+        Menu {
+            Picker(selection: $fuzzy.folderFilter) {
+                ForEach(folderFilters, id: \.self) { filter in
+                    Text(filter.id).tag(filter as FolderFilter?)
+                        .help("Searches in \(filter.folders.map(\.string).joined(separator: ", "))")
+                        .ifLet(filter.key) { view, key in
+                            view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
+                        }
+                }
+                Divider()
+                Text("Whole disk").tag(nil as FolderFilter?)
+                    .help("Searches the whole disk without any filters")
+                    .keyboardShortcut(.escape, modifiers: [.option])
+            } label: {}
+                .labelsHidden()
+                .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 2) {
+                Image(systemName: "folder.fill")
+                if let filter = fuzzy.folderFilter {
+                    Text(filter.id)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+        }
+        .menuStyle(.button)
+        .buttonStyle(BorderlessTextButton())
+        .fixedSize()
+        .onChange(of: fuzzy.folderFilter) {
+            fuzzy.sendQuery(query)
+        }
+    }
+
+    private func handleFolderFilterKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+        guard keyPress.modifiers == [.option] else { return .ignored }
+        guard keyPress.key != .escape else {
+            fuzzy.folderFilter = nil
+            return .handled
+        }
+
+        guard let filter = folderFilters.first(where: { $0.keyEquivalent == keyPress.key }) else {
+            return .ignored
+        }
+        fuzzy.folderFilter = filter
+        return .handled
+    }
 
     private var searchSection: some View {
         HStack {
+            folderFilterPicker
             ZStack(alignment: .trailing) {
                 searchBar
+                    .onKeyPress(keys: Set(folderFilters.compactMap(\.keyEquivalent) + [.escape]), phases: [.down], action: handleFolderFilterKeyPress)
                 HStack {
                     Text("press / to focus")
                         .round(10)
@@ -146,10 +198,9 @@ struct ContentView: View {
                 fuzzy.querySendTask = mainAsyncAfter(ms: 150) {
                     fuzzy.sendQuery(newValue)
                 }
-                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 500) {
-                    fuzzy.fetchResults()
-                    fuzzy.sendQuery(newValue)
-                }
+//                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 500) {
+//                    fuzzy.sendQuery(newValue)
+//                }
             }
             .focused($focused, equals: .search)
             .onKeyPress(.downArrow) {
@@ -228,6 +279,12 @@ struct ContentView: View {
         List(selection: $selectedResults) {
             ForEach(fuzzy.results, id: \.self) { filepath in
                 row(filepath).tag(filepath.string)
+                    .contentShape(Rectangle())
+                    .draggable(filepath.url)
+                    .onDoubleClick {
+                        NSApp.deactivate()
+                        NSWorkspace.shared.open(filepath.url)
+                    }
             }
         }
         .onChange(of: fuzzy.results) {

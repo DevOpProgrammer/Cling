@@ -107,6 +107,27 @@ class AppDelegate: LowtechIndieAppDelegate {
         mainWindow?.close()
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        log.debug("Open URLs: \(urls)")
+        handleURLs(application, urls)
+    }
+
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        log.debug("Open files: \(filenames)")
+        handleURLs(sender, filenames.compactMap(\.url))
+    }
+
+    func handleURLs(_ application: NSApplication, _ urls: [URL]) {
+        let filePaths = urls.compactMap(\.existingFilePath)
+        guard !filePaths.isEmpty else {
+            application.reply(toOpenOrPrint: .failure)
+            return
+        }
+        let id = filePaths.count == 1 ? filePaths[0].name.string : "Custom"
+        FUZZY.folderFilter = FolderFilter(id: id, folders: filePaths, key: nil)
+        application.reply(toOpenOrPrint: .success)
+    }
+
     func focusWindow() {
         mainAsyncAfter(0.1) {
             self.mainWindow?.makeKeyAndOrderFront(nil)
