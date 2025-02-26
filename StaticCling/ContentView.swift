@@ -122,23 +122,43 @@ struct ContentView: View {
     @State private var query = ""
     @State private var selectedResults = Set<FilePath>()
 
-    @Default(.terminalApp) private var terminalApp
     @Default(.folderFilters) private var folderFilters
 
     private var folderFilterPicker: some View {
         Menu {
             Picker(selection: $fuzzy.folderFilter) {
                 ForEach(folderFilters, id: \.self) { filter in
-                    Text(filter.id).tag(filter as FolderFilter?)
-                        .help("Searches in \(filter.folders.map(\.string).joined(separator: ", "))")
-                        .ifLet(filter.key) { view, key in
-                            view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
-                        }
+                    (
+                        Text("\(filter.id)\n") +
+                            Text(filter.folders.map(\.shellString).joined(separator: ", "))
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    )
+                    .tag(filter as FolderFilter?)
+                    .help("Searches in \(filter.folders.map(\.shellString).joined(separator: ", "))")
+                    .ifLet(filter.key) { view, key in
+                        view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
+                    }
+                    .truncationMode(.tail)
                 }
                 Divider()
                 Text("Whole disk").tag(nil as FolderFilter?)
                     .help("Searches the whole disk without any filters")
                     .keyboardShortcut(.escape, modifiers: [.option])
+
+                if let filter = fuzzy.folderFilter, !folderFilters.contains(filter) {
+                    Divider()
+                    (
+                        Text("\(filter.id)\n") +
+                            Text(filter.folders.map(\.shellString).joined(separator: ", "))
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    )
+                    .tag(filter as FolderFilter?)
+                    .help("Searches in \(filter.folders.map(\.shellString).joined(separator: ", "))")
+                    .truncationMode(.tail)
+
+                }
             } label: {}
                 .labelsHidden()
                 .pickerStyle(.inline)

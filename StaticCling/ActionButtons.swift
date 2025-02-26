@@ -12,6 +12,7 @@ struct ActionButtons: View {
     @State private var scriptManager: ScriptManager = SM
     @Default(.suppressTrashConfirm) var suppressTrashConfirm: Bool
     @Default(.terminalApp) var terminalApp
+    @Default(.editorApp) var editorApp
     @ObservedObject var km = KM
 
     var body: some View {
@@ -22,6 +23,7 @@ struct ActionButtons: View {
             showInFinderButton
             pasteToFrontmostAppButton(inTerminal: inTerminal)
             openInTerminalButton
+            openInEditorButton
             Spacer()
             openWithPickerButton
             Spacer()
@@ -68,6 +70,19 @@ struct ActionButtons: View {
             .help("Open the selected files in Terminal")
         }
     }
+    @ViewBuilder
+    private var openInEditorButton: some View {
+        if let editor = editorApp.existingFilePath?.url {
+            Button("⌘E Edit") {
+                NSWorkspace.shared.open(
+                    selectedResults.map(\.url), withApplicationAt: editor, configuration: .init(),
+                    completionHandler: { _, _ in }
+                )
+            }
+            .keyboardShortcut("e", modifiers: [.command])
+            .help("Open the selected files in the configured editor (\(editorApp.filePath?.stem ?? "TextEdit"))")
+        }
+    }
 
     private var copyFilesButton: some View {
         Button(action: copyFiles) {
@@ -104,7 +119,7 @@ struct ActionButtons: View {
     @ViewBuilder
     private var trashButton: some View {
         if km.ralt || km.lalt {
-            Button("⌘⌥⌫ Permanently delete", role: .destructive) {
+            Button("⌘⌥⌫ Delete", role: .destructive) {
                 permanentlyDelete()
             }
             .keyboardShortcut(.delete, modifiers: [.command, .option])

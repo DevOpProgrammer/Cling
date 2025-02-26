@@ -318,7 +318,7 @@ struct ScriptActionButtons: View {
             focused.wrappedValue = .executeScript
             isPresentingScriptPicker = true
         }
-        .keyboardShortcut("e", modifiers: [.command])
+        .keyboardShortcut("x", modifiers: [.command])
         .help("Run the selected files through a script")
         .sheet(isPresented: $isPresentingScriptPicker) {
             ScriptPickerView(fileURLs: selectedResults.map(\.url))

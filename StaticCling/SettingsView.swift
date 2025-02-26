@@ -22,6 +22,9 @@ struct SettingsView: View {
         }
     }
 
+    @State private var showShellAlert = false
+    @State private var shellIntegrationMessage = ""
+
     var body: some View {
         Form {
             HStack {
@@ -61,6 +64,23 @@ struct SettingsView: View {
                 Button("Edit Ignore File") {
                     NSWorkspace.shared.open([fsignore.url], withApplicationAt: editorApp.fileURL ?? "/Applications/TextEdit.app".fileURL!, configuration: .init(), completionHandler: { _, _ in })
                 }.truncationMode(.middle)
+            }
+
+            HStack {
+                (
+                    Text("Shell Integration")
+                        + Text("\nIntegrates StaticCling with your shell as a `cling` function")
+                        .round(11, weight: .regular).foregroundColor(.secondary)
+                ).fixedSize()
+                Spacer()
+                Button("Install") {
+                    shellIntegrationMessage = ShellIntegration.addClingFunction()
+                    showShellAlert = true
+                }
+                .truncationMode(.middle)
+                .alert("Shell Integration", isPresented: $showShellAlert, actions: {}) {
+                    Text(shellIntegrationMessage)
+                }
             }
 
             Toggle(isOn: $showWindowAtLaunch) {

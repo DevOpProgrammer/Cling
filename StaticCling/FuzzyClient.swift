@@ -637,13 +637,18 @@ func computeShortcuts(for urls: [URL]) -> [URL: Character] {
     return shortcuts
 }
 
+import Defaults
+
 func commonApplications(for urls: [URL]) -> [URL] {
     let appSets = urls.map { Set(NSWorkspace.shared.urlsForApplications(toOpen: $0)) }
     guard let first = appSets.first else {
         return []
     }
 
-    let commonApps = appSets.dropFirst().reduce(first) { $0.intersection($1) }
+    var commonApps = appSets.dropFirst().reduce(first) { $0.intersection($1) }
+    if let terminal = Defaults[.terminalApp].fileURL, let editor = Defaults[.editorApp].fileURL {
+        commonApps = commonApps.filter { $0 != terminal && $0 != editor }
+    }
     let commonAppsDict: [String: [URL]] = commonApps.group(by: \.bundleIdentifier)
     let uniqueAppsByShortestPath = commonAppsDict.values.compactMap { $0.min(by: \.path.count) }
     return uniqueAppsByShortestPath
