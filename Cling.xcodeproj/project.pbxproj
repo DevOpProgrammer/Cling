@@ -16,26 +16,26 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		C76172132D50E43600D78B4F /* StaticCling.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StaticCling.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C76172132D50E43600D78B4F /* Cling.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cling.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C74B68F32D51710500FCDEBA /* Exceptions for "StaticCling" folder in "StaticCling" target */ = {
+		C74B68F32D51710500FCDEBA /* Exceptions for "Cling" folder in "Cling" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = C76172122D50E43600D78B4F /* StaticCling */;
+			target = C76172122D50E43600D78B4F /* Cling */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C76172152D50E43600D78B4F /* StaticCling */ = {
+		C76172152D50E43600D78B4F /* Cling */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				C74B68F32D51710500FCDEBA /* Exceptions for "StaticCling" folder in "StaticCling" target */,
+				C74B68F32D51710500FCDEBA /* Exceptions for "Cling" folder in "Cling" target */,
 			);
-			path = StaticCling;
+			path = Cling;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -67,7 +67,7 @@
 		C761720A2D50E43600D78B4F = {
 			isa = PBXGroup;
 			children = (
-				C76172152D50E43600D78B4F /* StaticCling */,
+				C76172152D50E43600D78B4F /* Cling */,
 				C74B689F2D50F95800FCDEBA /* Frameworks */,
 				C76172142D50E43600D78B4F /* Products */,
 			);
@@ -76,7 +76,7 @@
 		C76172142D50E43600D78B4F /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				C76172132D50E43600D78B4F /* StaticCling.app */,
+				C76172132D50E43600D78B4F /* Cling.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -84,9 +84,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		C76172122D50E43600D78B4F /* StaticCling */ = {
+		C76172122D50E43600D78B4F /* Cling */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = C76172222D50E43700D78B4F /* Build configuration list for PBXNativeTarget "StaticCling" */;
+			buildConfigurationList = C76172222D50E43700D78B4F /* Build configuration list for PBXNativeTarget "Cling" */;
 			buildPhases = (
 				C761720F2D50E43600D78B4F /* Sources */,
 				C76172102D50E43600D78B4F /* Frameworks */,
@@ -97,9 +97,9 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				C76172152D50E43600D78B4F /* StaticCling */,
+				C76172152D50E43600D78B4F /* Cling */,
 			);
-			name = StaticCling;
+			name = Cling;
 			packageProductDependencies = (
 				C76172282D50F5D000D78B4F /* Lowtech */,
 				C761722A2D50F5D000D78B4F /* LowtechIndie */,
@@ -108,8 +108,8 @@
 				C7FE59BC2D60F84A00141592 /* FullDiskAccess */,
 				C7FE59F02D635D1500141592 /* ClopSDK */,
 			);
-			productName = StaticCling;
-			productReference = C76172132D50E43600D78B4F /* StaticCling.app */;
+			productName = Cling;
+			productReference = C76172132D50E43600D78B4F /* Cling.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -127,7 +127,7 @@
 					};
 				};
 			};
-			buildConfigurationList = C761720E2D50E43600D78B4F /* Build configuration list for PBXProject "StaticCling" */;
+			buildConfigurationList = C761720E2D50E43600D78B4F /* Build configuration list for PBXProject "Cling" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -148,7 +148,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				C76172122D50E43600D78B4F /* StaticCling */,
+				C76172122D50E43600D78B4F /* Cling */,
 			);
 		};
 /* End PBXProject section */
@@ -297,17 +297,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = StaticCling/StaticCling.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Cling/Cling.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 0.9;
-				DEVELOPMENT_ASSET_PATHS = "\"StaticCling/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Cling/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = StaticCling/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = StaticCling;
+				INFOPLIST_FILE = Cling/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Cling;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -316,7 +316,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.9;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.StaticCling;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Cling;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -328,17 +328,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = StaticCling/StaticCling.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Cling/Cling.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 0.9;
-				DEVELOPMENT_ASSET_PATHS = "\"StaticCling/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"Cling/Preview Content\"";
 				DEVELOPMENT_TEAM = RDDXV84A73;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = StaticCling/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = StaticCling;
+				INFOPLIST_FILE = Cling/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Cling;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -347,7 +347,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.9;
-				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.StaticCling;
+				PRODUCT_BUNDLE_IDENTIFIER = com.lowtechguys.Cling;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -357,7 +357,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		C761720E2D50E43600D78B4F /* Build configuration list for PBXProject "StaticCling" */ = {
+		C761720E2D50E43600D78B4F /* Build configuration list for PBXProject "Cling" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C76172202D50E43700D78B4F /* Debug */,
@@ -366,7 +366,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		C76172222D50E43700D78B4F /* Build configuration list for PBXNativeTarget "StaticCling" */ = {
+		C76172222D50E43700D78B4F /* Build configuration list for PBXNativeTarget "Cling" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C76172232D50E43700D78B4F /* Debug */,

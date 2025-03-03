@@ -69,7 +69,7 @@ struct SettingsView: View {
             HStack {
                 (
                     Text("Shell Integration")
-                        + Text("\nIntegrates StaticCling with your shell as a `cling` function")
+                        + Text("\nIntegrates Cling with your shell as a `cling` function")
                         .round(11, weight: .regular).foregroundColor(.secondary)
                 ).fixedSize()
                 Spacer()
@@ -86,7 +86,7 @@ struct SettingsView: View {
             Toggle(isOn: $showWindowAtLaunch) {
                 (
                     Text("Show window at launch")
-                        + Text("\nShow the main window when StaticCling is first launched")
+                        + Text("\nShow the main window when Cling is first launched")
                         .round(11, weight: .regular).foregroundColor(.secondary)
                 ).fixedSize()
             }

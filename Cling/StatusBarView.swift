@@ -1,6 +1,6 @@
 //
 //  StatusBarView.swift
-//  StaticCling
+//  Cling
 //
 //  Created by Alin Panaitiu on 08.02.2025.
 //

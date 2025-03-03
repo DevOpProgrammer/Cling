@@ -7,5 +7,5 @@ function cling() {
             folders+=("$(dirname "$arg")")
         fi
     done
-    open -a StaticCling "${folders[@]}"
+    open -a Cling "${folders[@]}"
 }

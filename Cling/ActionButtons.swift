@@ -90,6 +90,9 @@ struct ActionButtons: View {
         }
         .keyboardShortcut("c", modifiers: [.command])
         .help("Copy the selected files")
+        .background(Color.inverted.opacity(copiedFiles ? 1.0 : 0.0))
+        .shadow(color: Color.black.opacity(copiedFiles ? 0.1 : 0.0), radius: 3)
+        .scaleEffect(copiedFiles ? 1.1 : 1)
     }
 
     private var copyPathsButton: some View {
@@ -98,7 +101,13 @@ struct ActionButtons: View {
         }
         .keyboardShortcut("c", modifiers: [.command, .shift])
         .help("Copy the paths of the selected files")
+        .background(Color.inverted.opacity(copiedPaths ? 1.0 : 0.0))
+        .shadow(color: Color.black.opacity(copiedPaths ? 0.1 : 0.0), radius: 3)
+        .scaleEffect(copiedPaths ? 1.1 : 1)
     }
+
+    @State private var copiedPaths = false
+    @State private var copiedFiles = false
 
     private var openWithPickerButton: some View {
         Button("") {
@@ -200,11 +209,17 @@ struct ActionButtons: View {
     }
 
     private func copyFiles() {
+        withAnimation(.fastSpring) { copiedFiles = true }
+        mainAsyncAfter(ms: 150) { withAnimation(.easeOut(duration: 0.1)) { copiedFiles = false }}
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.writeObjects(selectedResults.map(\.url) as [NSPasteboardWriting])
     }
 
     private func copyPaths() {
+        withAnimation(.fastSpring) { copiedPaths = true }
+        mainAsyncAfter(ms: 150) { withAnimation(.easeOut(duration: 0.1)) { copiedPaths = false }}
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(
             appManager.frontmostAppIsTerminal

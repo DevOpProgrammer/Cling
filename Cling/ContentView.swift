@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  StaticCling
+//  Cling
 //
 //  Created by Alin Panaitiu on 03.02.2025.
 //
@@ -119,7 +119,6 @@ struct ContentView: View {
     @State private var renamedPaths: [FilePath]? = nil
     @State private var fuzzy: FuzzyClient = FUZZY
     @State private var scriptManager: ScriptManager = SM
-    @State private var query = ""
     @State private var selectedResults = Set<FilePath>()
 
     @Default(.folderFilters) private var folderFilters
@@ -177,7 +176,7 @@ struct ContentView: View {
         .buttonStyle(BorderlessTextButton())
         .fixedSize()
         .onChange(of: fuzzy.folderFilter) {
-            fuzzy.sendQuery(query)
+            fuzzy.sendQuery(fuzzy.query)
         }
     }
 
@@ -211,11 +210,11 @@ struct ContentView: View {
         }
     }
     private var searchBar: some View {
-        TextField("Search", text: $query)
+        TextField("Search", text: $fuzzy.query)
             .textFieldStyle(.roundedBorder)
             .padding(.vertical)
-            .onChange(of: query) { _, newValue in
-                fuzzy.querySendTask = mainAsyncAfter(ms: 150) {
+            .onChange(of: fuzzy.query) { _, newValue in
+                fuzzy.querySendTask = mainAsyncAfter(ms: 50) {
                     fuzzy.sendQuery(newValue)
                 }
 //                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 500) {
@@ -235,11 +234,11 @@ struct ContentView: View {
 
     private var xButton: some View {
         Button(action: {
-            if query.isEmpty {
+            if fuzzy.query.isEmpty {
                 dismiss()
                 appManager.lastFrontmostApp?.activate()
             } else {
-                query = ""
+                fuzzy.query = ""
             }
         }) {
             Image(systemName: "xmark.circle.fill")
@@ -293,11 +292,15 @@ struct ContentView: View {
         }.hfill(.leading)
     }
 
+    var results: [FilePath] {
+        fuzzy.noQuery ? fuzzy.recents : fuzzy.results
+    }
+
     @ViewBuilder
     private var resultsList: some View {
         header.frame(height: 20, alignment: .leading).padding(.leading, 16)
         List(selection: $selectedResults) {
-            ForEach(fuzzy.results, id: \.self) { filepath in
+            ForEach(results, id: \.self) { filepath in
                 row(filepath).tag(filepath.string)
                     .contentShape(Rectangle())
                     .draggable(filepath.url)
@@ -307,7 +310,7 @@ struct ContentView: View {
                     }
             }
         }
-        .onChange(of: fuzzy.results) {
+        .onChange(of: results) {
             selectFirstResult()
         }
         .onChange(of: selectedResults) {
@@ -371,7 +374,7 @@ struct ContentView: View {
     }
 
     private func selectFirstResult() {
-        if let firstResult = fuzzy.results.first {
+        if let firstResult = results.first {
             selectedResults = [firstResult]
         } else {
             selectedResults.removeAll()

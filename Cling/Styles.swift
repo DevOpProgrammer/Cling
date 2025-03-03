@@ -1,6 +1,6 @@
 //
 //  Styles.swift
-//  StaticCling
+//  Cling
 //
 //  Created by Alin Panaitiu on 06.02.2025.
 //

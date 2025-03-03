@@ -12,6 +12,7 @@ class FuzzyServer {
             listener = try NWListener(using: .tcp, on: port)
             listener?.newConnectionHandler = { connection in
                 mainActor { FUZZY.fetchResults() }
+                connection.cancel()
             }
             listener?.start(queue: queue)
             print("Listening on port \(port)")

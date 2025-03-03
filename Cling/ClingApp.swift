@@ -1,6 +1,6 @@
 //
-//  StaticClingApp.swift
-//  StaticCling
+//  ClingApp.swift
+//  Cling
 //
 //  Created by Alin Panaitiu on 03.02.2025.
 //
@@ -25,7 +25,7 @@ class AppDelegate: LowtechIndieAppDelegate {
     static var shared: AppDelegate? { NSApp.delegate as? AppDelegate }
 
     var mainWindow: NSWindow? {
-        NSApp.windows.first { $0.title == "StaticCling" }
+        NSApp.windows.first { $0.title == "Cling" }
     }
     var settingsWindow: NSWindow? {
         NSApp.windows.first { $0.title.contains("Settings") }
@@ -74,7 +74,7 @@ class AppDelegate: LowtechIndieAppDelegate {
 
         resizeCancellable = NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)
             .compactMap { $0.object as? NSWindow }
-            .filter { $0.title == "StaticCling" }
+            .filter { $0.title == "Cling" }
             .map(\.frame.size)
             .filter { $0 != WM.size }
             .throttle(for: .milliseconds(80), scheduler: RunLoop.main, latest: true)
@@ -187,12 +187,12 @@ class AppDelegate: LowtechIndieAppDelegate {
     }
 
     @objc func windowWillClose(_ notification: Notification) {
-        if let window = notification.object as? NSWindow, window.title == "StaticCling" {
+        if let window = notification.object as? NSWindow, window.title == "Cling" {
             APP_MANAGER.lastFrontmostApp?.activate()
         }
     }
     @objc func windowDidBecomeMain(_ notification: Notification) {
-        if let window = notification.object as? NSWindow, window.title == "StaticCling" {
+        if let window = notification.object as? NSWindow, window.title == "Cling" {
             window.titlebarAppearsTransparent = true
             window.styleMask = [
                 .fullSizeContentView, .closable, .resizable, .miniaturizable, .titled,
@@ -225,12 +225,12 @@ class WindowManager {
 @MainActor let WM = WindowManager()
 
 @main
-struct StaticClingApp: App {
+struct ClingApp: App {
     @Environment(\.openWindow) var openWindow
     @Environment(\.dismiss) var dismiss
 
     var body: some Scene {
-        Window("StaticCling", id: "main") {
+        Window("Cling", id: "main") {
             ContentView()
                 .frame(minWidth: WindowManager.DEFAULT_SIZE.width, minHeight: 300)
                 .ignoresSafeArea()
@@ -249,7 +249,10 @@ struct StaticClingApp: App {
             guard let window = wm.windowToOpen, !SWIFTUI_PREVIEW else {
                 return
             }
-            if window == "main", NSApp.windows.first(where: { $0.title == "StaticCling" }) != nil {
+            if window == "main" {
+                FUZZY.getRecents()
+            }
+            if window == "main", NSApp.windows.first(where: { $0.title == "Cling" }) != nil {
                 focus()
                 appDelegate.focusWindow()
                 wm.windowToOpen = nil

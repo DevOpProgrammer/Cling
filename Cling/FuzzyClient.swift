@@ -22,7 +22,7 @@ let fsignoreRecentsString = (HOME / ".fsignore-recents").string
 
 let indexFolder: FilePath =
     FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("StaticCling", isDirectory: true).filePath ?? "/tmp/cling-\(NSUserName())".filePath!
+        .appendingPathComponent("Cling", isDirectory: true).filePath ?? "/tmp/cling-\(NSUserName())".filePath!
 let homeIndex: FilePath = indexFolder / "home.index"
 let libraryIndex: FilePath = indexFolder / "library.index"
 let rootIndex: FilePath = indexFolder / "root.index"
@@ -69,17 +69,12 @@ class FuzzyClient {
     var indexProcesses: [Process] = []
     var operation = " "
     var scoredResults: [FilePath] = []
+    var recents: [FilePath] = []
     var commonOpenWithApps: [URL] = []
     var openWithAppShortcuts: [URL: Character] = [:]
-    // Ignored properties
-    @ObservationIgnored var queryTask: URLSessionTask?
-    @ObservationIgnored var fetchTask: URLSessionTask?
-
-    var fullDiskAccessChecker: Repeater?
-
-    @ObservationIgnored var indexChecker: Repeater?
-
     var folderFilter: FolderFilter?
+
+    var noQuery = true
 
     var sortField: SortField = .score {
         didSet {
@@ -137,6 +132,10 @@ class FuzzyClient {
         didSet { oldValue?.cancel() }
     }
 
+    func getRecents() {
+        recentsQuery = queryRecents()
+    }
+
     // Methods
     func start() {
         asyncNow {
@@ -145,8 +144,8 @@ class FuzzyClient {
         }
 
         FullDiskAccess.promptIfNotGranted(
-            title: "Enable Full Disk Access for StaticCling",
-            message: "StaticCling requires Full Disk Access to index the files on the whole disk.",
+            title: "Enable Full Disk Access for Cling",
+            message: "Cling requires Full Disk Access to index the files on the whole disk.",
             settingsButtonTitle: "Open Settings",
             skipButtonTitle: "Quit",
             canBeSuppressed: false,
@@ -451,7 +450,6 @@ class FuzzyClient {
 
         log.debug("FZF server started with PID: \(terminal.process.shellPid)")
         FileManager.default.createFile(atPath: PIDFILE.string, contents: terminal.process.shellPid.s.data(using: .utf8), attributes: nil)
-        mainAsyncAfter(1.0) { self.fetchResults() }
     }
 
     func stopServer() {
@@ -524,6 +522,9 @@ class FuzzyClient {
                     }
                     self.scoredResults = (results.array as! [String]).compactMap(\.filePath).filter(\.exists)
                     self.results = self.sortedResults()
+                    if !self.query.isEmpty {
+                        self.noQuery = false
+                    }
                 }
             } catch {
                 log.error("JSON decode error: \(error)")
@@ -558,6 +559,13 @@ class FuzzyClient {
 
     func sendQuery(_ query: String) {
         queryTask?.cancel()
+        if query.isEmpty {
+            noQuery = true
+            scoredResults = []
+            results = []
+            return
+        }
+
         guard !indexing else {
             return
         }
@@ -577,6 +585,12 @@ class FuzzyClient {
         request.httpBody = "change-query:\(query)".data(using: .utf8)
 
         queryTask = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error as NSError?, error.code == 24 {
+                mainActor {
+                    self.restartServer()
+                }
+            }
+
             if let error {
                 log.error("Request error: \(error)")
                 mainActor { [self] in
@@ -591,6 +605,13 @@ class FuzzyClient {
         }
         queryTask!.resume()
     }
+
+    // Ignored properties
+    @ObservationIgnored private var queryTask: URLSessionTask?
+    @ObservationIgnored private var fetchTask: URLSessionTask?
+    @ObservationIgnored private var recentsQuery: MDQuery?
+    @ObservationIgnored private var fullDiskAccessChecker: Repeater?
+    @ObservationIgnored private var indexChecker: Repeater?
 
 }
 

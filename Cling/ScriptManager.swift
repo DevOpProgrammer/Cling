@@ -5,7 +5,7 @@ import System
 
 let scriptsFolder: FilePath =
     FileManager.default.urls(for: .applicationScriptsDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("StaticCling", isDirectory: true).filePath ?? "~/.local/cling-scripts".filePath!
+        .appendingPathComponent("Cling", isDirectory: true).filePath ?? "~/.local/cling-scripts".filePath!
 
 @Observable
 class ScriptManager {

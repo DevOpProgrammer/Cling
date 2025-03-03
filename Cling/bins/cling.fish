@@ -7,7 +7,7 @@ function cling
             set folders $folders (dirname $arg)
         end
     end
-    open -a StaticCling $folders
+    open -a Cling $folders
 end
 
 complete -c cling -a '(__fish_complete_directories)'
