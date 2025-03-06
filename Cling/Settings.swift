@@ -52,4 +52,5 @@ extension Defaults.Keys {
     static let terminalApp = Key<String>("terminalApp", default: "/System/Applications/Utilities/Terminal.app")
     static let showWindowAtLaunch = Key<Bool>("showWindowAtLaunch", default: true)
     static let folderFilters = Key<[FolderFilter]>("folderFilters", default: DEFAULT_FOLDER_FILTERS)
+    static let maxResultsCount = Key<Int>("maxResultsCount", default: 30)
 }

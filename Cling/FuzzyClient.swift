@@ -132,8 +132,13 @@ class FuzzyClient {
         didSet { oldValue?.cancel() }
     }
 
-    func getRecents() {
-        recentsQuery = queryRecents()
+    var suspended = false {
+        didSet {
+            guard oldValue != suspended, terminal.running else {
+                return
+            }
+            kill(-terminal.process.shellPid, suspended ? SIGSTOP : SIGCONT)
+        }
     }
 
     // Methods
@@ -160,6 +165,16 @@ class FuzzyClient {
             }
             self.startServer()
         }
+
+        pub(.maxResultsCount)
+            .debounce(for: 0.5, scheduler: RunLoop.main)
+            .sink { [self] count in
+                fetchResults()
+                if let recentsQuery {
+                    stopRecentsQuery(recentsQuery)
+                    self.recentsQuery = queryRecents()
+                }
+            }.store(in: &observers)
 
         indexFolder.mkdir(withIntermediateDirectories: true, permissions: 0o700)
         if FullDiskAccess.isGranted {
@@ -514,7 +529,7 @@ class FuzzyClient {
             do {
                 let response = try JSONDecoder().decode(FzfResponse.self, from: data)
                 mainActor {
-                    let results = NSMutableOrderedSet(array: response.matches.prefix(30).map(\.text))
+                    let results = NSMutableOrderedSet(array: response.matches.prefix(Defaults[.maxResultsCount]).map(\.text))
 
                     results.minusSet(HARD_IGNORED)
                     if !self.removedFiles.isEmpty {
@@ -606,10 +621,12 @@ class FuzzyClient {
         queryTask!.resume()
     }
 
+    @ObservationIgnored private var observers: Set<AnyCancellable> = []
+
     // Ignored properties
     @ObservationIgnored private var queryTask: URLSessionTask?
     @ObservationIgnored private var fetchTask: URLSessionTask?
-    @ObservationIgnored private var recentsQuery: MDQuery?
+    @ObservationIgnored private var recentsQuery: MDQuery? = queryRecents()
     @ObservationIgnored private var fullDiskAccessChecker: Repeater?
     @ObservationIgnored private var indexChecker: Repeater?
 

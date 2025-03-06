@@ -3,12 +3,22 @@ import Lowtech
 import LowtechIndie
 import SwiftUI
 
+extension Binding<Int> {
+    var d: Binding<Double> {
+        .init(
+            get: { Double(wrappedValue) },
+            set: { wrappedValue = Int($0) }
+        )
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var updateManager = UM
 
     @Default(.checkForUpdates) private var checkForUpdates
     @Default(.updateCheckInterval) private var updateCheckInterval
     @Default(.showWindowAtLaunch) private var showWindowAtLaunch
+    @Default(.maxResultsCount) private var maxResultsCount
 
     private func selectApp(type: String, onCompletion: @escaping (URL) -> Void) {
         let panel = NSOpenPanel()
@@ -81,6 +91,18 @@ struct SettingsView: View {
                 .alert("Shell Integration", isPresented: $showShellAlert, actions: {}) {
                     Text(shellIntegrationMessage)
                 }
+            }
+
+            HStack {
+                (
+                    Text("Max Results")
+                        + Text("\nMaximum number of results to show in the search results")
+                        .round(11, weight: .regular).foregroundColor(.secondary)
+                ).fixedSize()
+                Spacer()
+                Slider(value: $maxResultsCount.d, in: 1 ... 100, step: 1) {
+                    Text("\(Int(maxResultsCount))")
+                }.frame(width: 150)
             }
 
             Toggle(isOn: $showWindowAtLaunch) {

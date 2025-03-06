@@ -104,6 +104,7 @@ class AppDelegate: LowtechIndieAppDelegate {
 
     override func applicationDidResignActive(_ notification: Notification) {
 //        log.debug("Resigned active")
+        WM.mainWindowActive = false
         mainWindow?.close()
     }
 
@@ -188,11 +189,13 @@ class AppDelegate: LowtechIndieAppDelegate {
 
     @objc func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow, window.title == "Cling" {
+            WM.mainWindowActive = false
             APP_MANAGER.lastFrontmostApp?.activate()
         }
     }
     @objc func windowDidBecomeMain(_ notification: Notification) {
         if let window = notification.object as? NSWindow, window.title == "Cling" {
+            WM.mainWindowActive = true
             window.titlebarAppearsTransparent = true
             window.styleMask = [
                 .fullSizeContentView, .closable, .resizable, .miniaturizable, .titled,
@@ -217,6 +220,12 @@ class WindowManager {
 
     var windowToOpen: String?
     var size = DEFAULT_SIZE
+
+    var mainWindowActive = false {
+        didSet {
+            FUZZY.suspended = !mainWindowActive
+        }
+    }
 
     func open(_ window: String) {
         windowToOpen = window
@@ -248,9 +257,6 @@ struct ClingApp: App {
         .onChange(of: wm.windowToOpen) {
             guard let window = wm.windowToOpen, !SWIFTUI_PREVIEW else {
                 return
-            }
-            if window == "main" {
-                FUZZY.getRecents()
             }
             if window == "main", NSApp.windows.first(where: { $0.title == "Cling" }) != nil {
                 focus()

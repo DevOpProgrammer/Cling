@@ -288,7 +288,7 @@ struct ScriptActionButtons: View {
     @ViewBuilder
     private var clopButton: some View {
         if fuzzy.clopIsAvailable {
-            let clopCandidates = selectedResults.map(\.url).filter(\.memoz.canBeOptimisedByClop)
+            let clopCandidates = selectedResults.filter(\.exists).map(\.url).filter(\.memoz.canBeOptimisedByClop)
             if clopCandidates.isNotEmpty {
                 let oKeyAvailable = !scriptManager.scriptShortcuts.values.contains("o")
                 Button(action: {

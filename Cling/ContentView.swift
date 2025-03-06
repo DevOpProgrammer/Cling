@@ -38,9 +38,14 @@ enum FocusedField {
 
 struct ContentView: View {
     @Environment(\.dismiss) var dismiss
-    @ObservedObject var km = KM
+    @State var wm = WM
 
     var body: some View {
+        content
+            .disabled(!wm.mainWindowActive)
+    }
+
+    var content: some View {
         VStack {
             searchSection
 
@@ -58,16 +63,18 @@ struct ContentView: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            ActionButtons(selectedResults: $selectedResults, focused: $focused)
-                .hfill(.leading)
-                .padding(.bottom, 4)
+            if wm.mainWindowActive {
+                ActionButtons(selectedResults: $selectedResults, focused: $focused)
+                    .hfill(.leading)
+                    .padding(.bottom, 4)
 
-            OpenWithActionButtons(selectedResults: selectedResults)
-                .hfill(.leading)
-            ScriptActionButtons(selectedResults: selectedResults, focused: $focused)
-                .hfill(.leading)
+                OpenWithActionButtons(selectedResults: selectedResults)
+                    .hfill(.leading)
+                ScriptActionButtons(selectedResults: selectedResults, focused: $focused)
+                    .hfill(.leading)
 
-            StatusBarView().hfill(.leading).padding(.top, 10)
+                StatusBarView().hfill(.leading).padding(.top, 10)
+            }
         }
         .padding([.top, .leading, .trailing])
         .padding(.bottom, 4)
@@ -355,17 +362,17 @@ struct ContentView: View {
 
     private func row(_ path: FilePath) -> some View {
         HStack(spacing: 20) {
-            Image(nsImage: NSWorkspace.shared.icon(forFile: path.string))
+            Image(nsImage: path.memoz.icon)
                 .resizable()
                 .frame(width: 16, height: 16)
             Text(path.name.string)
                 .frame(width: nameWidth, alignment: .leading)
             Text(path.dir.shellString)
                 .frame(width: pathWidth, alignment: .leading)
-            Text((path.fileSize() ?? 0).humanSize)
+            Text(path.memoz.humanizedFileSize)
                 .monospaced()
                 .frame(width: 80, alignment: .trailing)
-            Text((path.modificationDate ?? Date()).formatted(dateFormat))
+            Text((path.memoz.modificationDate ?? Date()).formatted(dateFormat))
                 .monospaced()
                 .frame(width: 200, alignment: .leading)
         }
@@ -382,6 +389,14 @@ struct ContentView: View {
     }
 }
 
+extension FilePath {
+    var humanizedFileSize: String {
+        (fileSize() ?? 0).humanSize
+    }
+    var icon: NSImage {
+        NSWorkspace.shared.icon(forFile: string)
+    }
+}
 // #Preview {
 //     ContentView()
 // }

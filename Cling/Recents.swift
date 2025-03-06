@@ -1,3 +1,4 @@
+import Defaults
 import Foundation
 import Lowtech
 import System
@@ -37,27 +38,85 @@ let sortComparator: MDQuerySortComparatorFunction = { values1, values2, context 
     return CFDateCompare(date1, date2, nil).reversed()
 }
 
-let notificationCallback: CFNotificationCallback = { notificationCenter, observer, notificationName, object, userInfo in
+extension MDQuery {
+    func getPaths() -> [FilePath] {
+        var paths: [FilePath] = []
+        for i in 0 ..< MDQueryGetResultCount(self) {
+            guard let rawPtr = MDQueryGetResultAtIndex(self, i) else {
+                continue
+            }
+            let item = Unmanaged<MDItem>.fromOpaque(rawPtr).takeUnretainedValue()
+            guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else {
+                continue
+            }
+            paths.append(FilePath(path))
+        }
+        return paths
+    }
+}
+
+@MainActor var recentsSetTask: DispatchWorkItem? {
+    didSet {
+        oldValue?.cancel()
+    }
+}
+
+let queryFinishCallback: CFNotificationCallback = { notificationCenter, observer, notificationName, object, userInfo in
     guard let object: UnsafeRawPointer else {
         return
     }
-    let query: MDQuery = unsafeBitCast(object, to: MDQuery.self)
-    var paths: [FilePath] = []
 
-    MDQueryStop(query)
-    for i in 0 ..< MDQueryGetResultCount(query) {
-        guard let rawPtr = MDQueryGetResultAtIndex(query, i) else {
-            continue
-        }
-        let item = Unmanaged<MDItem>.fromOpaque(rawPtr).takeUnretainedValue()
-        guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else {
-            continue
-        }
-        paths.append(FilePath(path))
-    }
+    let query: MDQuery = unsafeBitCast(object, to: MDQuery.self)
+    let paths = query.getPaths()
 
     mainActor {
         FUZZY.recents = paths
+    }
+}
+
+let queryUpdateCallback: CFNotificationCallback = { notificationCenter, observer, notificationName, object, userInfo in
+    guard let object: UnsafeRawPointer else {
+        return
+    }
+
+    let userInfo = userInfo as? [CFString: Any]
+    let added = userInfo?[kMDQueryUpdateAddedItems] as? [MDItem]
+    let removed = userInfo?[kMDQueryUpdateRemovedItems] as? [MDItem]
+    guard added?.isEmpty == false || removed?.isEmpty == false else {
+        return
+    }
+
+    let query: MDQuery = unsafeBitCast(object, to: MDQuery.self)
+    let paths = query.getPaths()
+
+    mainActor {
+        FUZZY.recents = paths
+    }
+
+    // let changed = userInfo?[kMDQueryUpdateChangedItems] as? [MDItem]
+
+    // for item in added ?? [] {
+    //     print("Added: \(item.description)")
+    // }
+    // for item in removed ?? [] {
+    //     print("Removed: \(item.description)")
+    // }
+    // for item in changed ?? [] {
+    //     print("Changed: \(item.description)")
+    // }
+}
+
+extension MDItem {
+    var description: String {
+        guard let path = MDItemCopyAttribute(self, kMDItemPath) as? String else {
+            return "<MDItem Unknown>"
+        }
+        guard let date = MDItemCopyAttribute(self, kMDItemLastUsedDate) as? Date ?? MDItemCopyAttribute(self, kMDItemFSContentChangeDate) as? Date ?? MDItemCopyAttribute(self, kMDItemFSCreationDate) as? Date,
+              let size = MDItemCopyAttribute(self, kMDItemFSSize) as? Int
+        else {
+            return "<MDItem \(path)>"
+        }
+        return "<MDItem \(path) | \(date.formatted(dateFormat)) | \(size.humanSize)>"
     }
 }
 
@@ -67,25 +126,49 @@ let queryString =
 
 private let mdQueryObserver: UnsafeMutablePointer<AnyObject?> = .allocate(capacity: 1)
 
+func stopRecentsQuery(_ query: MDQuery) {
+    MDQueryStop(query)
+    CFNotificationCenterRemoveObserver(
+        CFNotificationCenterGetLocalCenter(),
+        mdQueryObserver,
+        CFNotificationName(kMDQueryDidFinishNotification),
+        unsafeBitCast(query, to: UnsafeRawPointer.self)
+    )
+    CFNotificationCenterRemoveObserver(
+        CFNotificationCenterGetLocalCenter(),
+        mdQueryObserver,
+        CFNotificationName(kMDQueryDidUpdateNotification),
+        unsafeBitCast(query, to: UnsafeRawPointer.self)
+    )
+}
+
 func queryRecents() -> MDQuery? {
     guard let query = MDQueryCreate(kCFAllocatorDefault, queryString as CFString, [kMDItemPath] as CFArray, SORT_ATTRS) else {
         log.error("Failed to create query")
         return nil
     }
     MDQuerySetSearchScope(query, [kMDQueryScopeHome] as CFArray, 0)
-    MDQuerySetMaxCount(query, 30)
+    MDQuerySetMaxCount(query, Defaults[.maxResultsCount])
     MDQuerySetSortComparator(query, sortComparator, nil)
     MDQuerySetDispatchQueue(query, .global())
 
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetLocalCenter(),
         mdQueryObserver,
-        notificationCallback,
+        queryFinishCallback,
         kMDQueryDidFinishNotification,
-        nil,
+        unsafeBitCast(query, to: UnsafeRawPointer.self),
+        .deliverImmediately
+    )
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetLocalCenter(),
+        mdQueryObserver,
+        queryUpdateCallback,
+        kMDQueryDidUpdateNotification,
+        unsafeBitCast(query, to: UnsafeRawPointer.self),
         .deliverImmediately
     )
 
-    MDQueryExecute(query, 0)
+    MDQueryExecute(query, kMDQueryWantsUpdates.rawValue.u)
     return query
 }
