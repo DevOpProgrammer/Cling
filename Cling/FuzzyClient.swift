@@ -121,8 +121,7 @@ class FuzzyClient {
 
     var serverProcess: LocalProcess? { terminal.running ? terminal.process : nil }
     var indexIsStale: Bool {
-        let indexFiles = [homeIndex, libraryIndex, rootIndex]
-        return indexFiles.contains {
+        searchScopeIndexes.contains {
             !$0.exists
                 || ($0.timestamp ?? 0) < Date().addingTimeInterval(-3600).timeIntervalSince1970
         }
@@ -141,6 +140,14 @@ class FuzzyClient {
         }
     }
 
+    @ObservationIgnored var searchScopeIndexes: [FilePath] {
+        [
+            Defaults[.searchScopes].contains(.home) ? homeIndex : nil,
+            Defaults[.searchScopes].contains(.library) ? libraryIndex : nil,
+            Defaults[.searchScopes].contains(.root) ? rootIndex : nil,
+        ].compactMap { $0 }
+    }
+
     // Methods
     func start() {
         asyncNow {
@@ -157,6 +164,7 @@ class FuzzyClient {
             icon: nil
         )
         FUZZY_SERVER.start()
+        _ = shell("/usr/bin/pkill", args: ["-KILL", "-f", "Cling.app/Contents/Resources/fzf"], wait: true)
 
         terminal = FZFTerminal { exitCode in
             log.debug("Terminal exited with code: \(exitCode ?? 0)")
@@ -174,6 +182,11 @@ class FuzzyClient {
                     stopRecentsQuery(recentsQuery)
                     self.recentsQuery = queryRecents()
                 }
+            }.store(in: &observers)
+        pub(.searchScopes)
+            .debounce(for: 2.0, scheduler: RunLoop.main)
+            .sink { [self] _ in
+                restartServer()
             }.store(in: &observers)
 
         indexFolder.mkdir(withIntermediateDirectories: true, permissions: 0o700)
@@ -212,7 +225,7 @@ class FuzzyClient {
         }
 
         if indexIsStale {
-            let earliestModificationDate = [homeIndex, libraryIndex, rootIndex]
+            let earliestModificationDate = searchScopeIndexes
                 .compactMap(\.modificationDate)
                 .min()
             indexFiles(changedWithin: earliestModificationDate) { [self] in
@@ -242,9 +255,7 @@ class FuzzyClient {
             queryTask?.cancel()
         }
 
-        let earliestModificationDate = fullReindex ? nil : [homeIndex, libraryIndex, rootIndex]
-            .compactMap(\.modificationDate)
-            .min()
+        let earliestModificationDate = fullReindex ? nil : searchScopeIndexes.compactMap(\.modificationDate).min()
 
         stopWatchingFiles()
         indexFiles(changedWithin: earliestModificationDate) { [self] in
@@ -368,22 +379,31 @@ class FuzzyClient {
         let changedWithinArg = changedWithin.map { ["--changed-within", "@\($0.timeIntervalSince1970.intround)"] } ?? []
         let commonArgs = ["-uu", "-j", "\(fdThreads)", "--one-file-system"] + changedWithinArg + ["--ignore-file", "\(HOME.string)/.fsignore"]
         let commands = [
-            (
-                arguments: commonArgs + [
-                    "--exclude", "\(HOME.string)/Library/*", ".", HOME.string,
-                ].filter(!\.isEmpty), output: homeIndex
-            ),
-            (
+            Defaults[.searchScopes].contains(.home)
+                ? (
+                    arguments: commonArgs + [
+                        "--exclude", "\(HOME.string)/Library/*", ".", HOME.string,
+                    ].filter(!\.isEmpty), output: homeIndex
+                )
+                : nil,
+            Defaults[.searchScopes].contains(.library) ? (
                 arguments: commonArgs + [
                     ".", "\(HOME.string)/Library",
                 ].filter(!\.isEmpty), output: libraryIndex
-            ),
-            (
+            ) : nil,
+            Defaults[.searchScopes].contains(.root) ? (
                 arguments: commonArgs + [
                     "--exclude", "\(HOME.string)/*", ".", "/",
                 ].filter(!\.isEmpty), output: rootIndex
-            ),
-        ]
+            ) : nil,
+        ].compactMap { $0 }
+
+        guard !commands.isEmpty else {
+            log.debug("No folders to index")
+            onFinish?()
+            indexing = false
+            return
+        }
 
         let group = DispatchGroup()
         for command in commands {
@@ -445,7 +465,7 @@ class FuzzyClient {
     }
 
     func startServer() {
-        let indexFiles = [homeIndex, libraryIndex, rootIndex, storedIndex]
+        let indexFiles = (searchScopeIndexes + [storedIndex])
             .filter(\.exists)
             .map { "\"\($0.string)\"" }
             .joined(separator: " ")
@@ -610,6 +630,7 @@ class FuzzyClient {
                 log.error("Request error: \(error)")
                 mainActor { [self] in
                     if !terminal.running {
+                        stopServer()
                         startServer()
                     }
                 }

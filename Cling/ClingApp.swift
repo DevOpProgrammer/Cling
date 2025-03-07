@@ -46,10 +46,11 @@ class AppDelegate: LowtechIndieAppDelegate {
 
         super.applicationDidFinishLaunching(notification)
 
-        KM.specialKey = .slash
-        KM.specialKeyModifiers = [.rcmd]
+        KM.specialKey = Defaults[.enableGlobalHotkey] ? Defaults[.showAppKey] : nil
+        KM.specialKeyModifiers = Defaults[.triggerKeys]
         KM.onSpecialHotkey = { [self] in
             if let mainWindow, mainWindow.isKeyWindow {
+                WM.pinned = false
                 mainWindow.resignKey()
                 mainWindow.resignMain()
                 mainWindow.close()
@@ -60,6 +61,21 @@ class AppDelegate: LowtechIndieAppDelegate {
                 focus()
             }
         }
+        pub(.enableGlobalHotkey)
+            .sink { change in
+                KM.specialKey = change.newValue ? Defaults[.showAppKey] : nil
+                KM.reinitHotkeys()
+            }.store(in: &observers)
+        pub(.showAppKey)
+            .sink { change in
+                KM.specialKey = Defaults[.enableGlobalHotkey] ? change.newValue : nil
+                KM.reinitHotkeys()
+            }.store(in: &observers)
+        pub(.triggerKeys)
+            .sink { change in
+                KM.specialKeyModifiers = change.newValue
+                KM.reinitHotkeys()
+            }.store(in: &observers)
 
         UM.updater = updateController.updater
 
@@ -104,6 +120,12 @@ class AppDelegate: LowtechIndieAppDelegate {
 
     override func applicationDidResignActive(_ notification: Notification) {
 //        log.debug("Resigned active")
+        settingsWindow?.close()
+        guard !WM.pinned else {
+            mainWindow?.level = .floating
+            mainWindow?.alphaValue = 0.75
+            return
+        }
         WM.mainWindowActive = false
         mainWindow?.close()
     }
@@ -130,6 +152,10 @@ class AppDelegate: LowtechIndieAppDelegate {
     }
 
     func focusWindow() {
+        mainWindow?.makeKeyAndOrderFront(nil)
+        mainWindow?.orderFrontRegardless()
+        mainWindow?.becomeMain()
+        mainWindow?.becomeKey()
         mainAsyncAfter(0.1) {
             self.mainWindow?.makeKeyAndOrderFront(nil)
             self.mainWindow?.orderFrontRegardless()
@@ -196,6 +222,9 @@ class AppDelegate: LowtechIndieAppDelegate {
     @objc func windowDidBecomeMain(_ notification: Notification) {
         if let window = notification.object as? NSWindow, window.title == "Cling" {
             WM.mainWindowActive = true
+
+            window.alphaValue = 1
+            window.level = .normal
             window.titlebarAppearsTransparent = true
             window.styleMask = [
                 .fullSizeContentView, .closable, .resizable, .miniaturizable, .titled,
@@ -220,14 +249,27 @@ class WindowManager {
 
     var windowToOpen: String?
     var size = DEFAULT_SIZE
+    var pinned = false
 
     var mainWindowActive = false {
         didSet {
+            guard !pinned else {
+                return
+            }
             FUZZY.suspended = !mainWindowActive
         }
     }
 
     func open(_ window: String) {
+        if window == "main", NSApp.windows.first(where: { $0.title == "Cling" }) != nil {
+            print("Open main window")
+            focus()
+            AppDelegate.shared?.focusWindow()
+            if windowToOpen != nil {
+                windowToOpen = nil
+            }
+            return
+        }
         windowToOpen = window
     }
 }
@@ -259,9 +301,6 @@ struct ClingApp: App {
                 return
             }
             if window == "main", NSApp.windows.first(where: { $0.title == "Cling" }) != nil {
-                focus()
-                appDelegate.focusWindow()
-                wm.windowToOpen = nil
                 return
             }
 
@@ -274,6 +313,7 @@ struct ClingApp: App {
         Settings {
             SettingsView()
                 .frame(minWidth: 600, minHeight: 600)
+                .environmentObject(envState)
         }
         .defaultSize(width: 600, height: 600)
     }

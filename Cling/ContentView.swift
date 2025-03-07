@@ -40,9 +40,25 @@ struct ContentView: View {
     @Environment(\.dismiss) var dismiss
     @State var wm = WM
 
+    var pinButton: some View {
+        Button(action: {
+            wm.pinned.toggle()
+        }) {
+            Image(systemName: wm.pinned ? "pin.circle.fill" : "pin.circle")
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.secondary)
+        .keyboardShortcut(".")
+        .focusable(false)
+        .help(wm.pinned ? "Unpin window (⌘.)" : "Pin window to keep it on top of other windows (⌘.)")
+    }
+
     var body: some View {
-        content
-            .disabled(!wm.mainWindowActive)
+        ZStack(alignment: .topTrailing) {
+            pinButton.offset(x: -10, y: 5)
+            content
+                .disabled(!wm.mainWindowActive)
+        }
     }
 
     var content: some View {
@@ -246,6 +262,7 @@ struct ContentView: View {
                 appManager.lastFrontmostApp?.activate()
             } else {
                 fuzzy.query = ""
+                focused = .search
             }
         }) {
             Image(systemName: "xmark.circle.fill")

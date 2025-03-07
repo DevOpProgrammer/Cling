@@ -40,6 +40,25 @@ struct FolderFilter: Identifiable, Hashable, Codable, Defaults.Serializable {
     }
 }
 
+enum SearchScope: String, CaseIterable, Defaults.Serializable {
+    case root
+    case home
+    case library
+
+    var binding: Binding<Bool> {
+        Binding(
+            get: { Defaults[.searchScopes].contains(self) },
+            set: { enabled in
+                if enabled {
+                    Defaults[.searchScopes].append(self)
+                } else {
+                    Defaults[.searchScopes].removeAll { $0 == self }
+                }
+            }
+        )
+    }
+}
+
 let DEFAULT_FOLDER_FILTERS = [
     FolderFilter(id: "Applications", folders: ["/Applications".filePath!, "/System/Applications".filePath!], key: "a"),
     FolderFilter(id: "Home", folders: [HOME], key: "h"),
@@ -53,4 +72,10 @@ extension Defaults.Keys {
     static let showWindowAtLaunch = Key<Bool>("showWindowAtLaunch", default: true)
     static let folderFilters = Key<[FolderFilter]>("folderFilters", default: DEFAULT_FOLDER_FILTERS)
     static let maxResultsCount = Key<Int>("maxResultsCount", default: 30)
+
+    static let enableGlobalHotkey = Key<Bool>("enableGlobalHotkey", default: true)
+    static let showAppKey = Key<SauceKey>("showAppKey", default: SauceKey.slash)
+    static let triggerKeys = Key<[TriggerKey]>("triggerKeys", default: [.rcmd])
+
+    static let searchScopes = Key<[SearchScope]>("searchScopes", default: [.root, .home, .library])
 }
