@@ -285,6 +285,7 @@ struct ClingApp: App {
             ContentView()
                 .frame(minWidth: WindowManager.DEFAULT_SIZE.width, minHeight: 300)
                 .ignoresSafeArea()
+                .environmentObject(envState)
         }
         .defaultSize(width: WindowManager.DEFAULT_SIZE.width, height: WindowManager.DEFAULT_SIZE.height)
         .windowStyle(.hiddenTitleBar)

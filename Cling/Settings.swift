@@ -40,6 +40,32 @@ struct FolderFilter: Identifiable, Hashable, Codable, Defaults.Serializable {
     }
 }
 
+struct QuickFilter: Identifiable, Hashable, Codable, Defaults.Serializable {
+    let id: String
+    let query: String
+    let key: Character?
+
+    var keyEquivalent: KeyEquivalent? {
+        key.map { KeyEquivalent($0) }
+    }
+
+    func withKey(_ key: Character?) -> QuickFilter {
+        QuickFilter(id: id, query: query, key: key)
+    }
+
+}
+
+let DEFAULT_FOLDER_FILTERS = [
+    FolderFilter(id: "Applications", folders: ["/Applications".filePath!, "/System/Applications".filePath!], key: "a"),
+    FolderFilter(id: "Home", folders: [HOME], key: "h"),
+    FolderFilter(id: "Documents", folders: [HOME / "Documents", HOME / "Desktop", HOME / "Downloads"], key: "d"),
+]
+
+let DEFAULT_QUICK_FILTERS = [
+    QuickFilter(id: "PDFs", query: ".pdf$", key: "p"),
+    QuickFilter(id: "Folders only", query: "/$", key: "f"),
+]
+
 enum SearchScope: String, CaseIterable, Defaults.Serializable {
     case root
     case home
@@ -59,12 +85,6 @@ enum SearchScope: String, CaseIterable, Defaults.Serializable {
     }
 }
 
-let DEFAULT_FOLDER_FILTERS = [
-    FolderFilter(id: "Applications", folders: ["/Applications".filePath!, "/System/Applications".filePath!], key: "a"),
-    FolderFilter(id: "Home", folders: [HOME], key: "h"),
-    FolderFilter(id: "Documents", folders: [HOME / "Documents", HOME / "Desktop", HOME / "Downloads"], key: "d"),
-]
-
 extension Defaults.Keys {
     static let suppressTrashConfirm = Key<Bool>("suppressTrashConfirm", default: false)
     static let editorApp = Key<String>("editorApp", default: "/System/Applications/TextEdit.app")
@@ -78,4 +98,5 @@ extension Defaults.Keys {
     static let triggerKeys = Key<[TriggerKey]>("triggerKeys", default: [.rcmd])
 
     static let searchScopes = Key<[SearchScope]>("searchScopes", default: [.root, .home, .library])
+    static let quickFilters = Key<[QuickFilter]>("quickFilters", default: DEFAULT_QUICK_FILTERS)
 }

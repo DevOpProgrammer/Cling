@@ -73,6 +73,7 @@ class FuzzyClient {
     var commonOpenWithApps: [URL] = []
     var openWithAppShortcuts: [URL: Character] = [:]
     var folderFilter: FolderFilter?
+    var quickFilter: QuickFilter?
 
     var noQuery = true
 
@@ -557,7 +558,7 @@ class FuzzyClient {
                     }
                     self.scoredResults = (results.array as! [String]).compactMap(\.filePath).filter(\.exists)
                     self.results = self.sortedResults()
-                    if !self.query.isEmpty {
+                    if !self.query.isEmpty || self.folderFilter != nil || self.quickFilter != nil {
                         self.noQuery = false
                     }
                 }
@@ -594,7 +595,7 @@ class FuzzyClient {
 
     func sendQuery(_ query: String) {
         queryTask?.cancel()
-        if query.isEmpty {
+        if query.isEmpty, folderFilter == nil, quickFilter == nil {
             noQuery = true
             scoredResults = []
             results = []
@@ -609,6 +610,9 @@ class FuzzyClient {
         if let filter = folderFilter {
             let folders = filter.folders.map { "^\($0.string)" }.joined(separator: " | ")
             query = "\(folders) \(query)"
+        }
+        if let quickFilter {
+            query = "\(quickFilter.query) \(query)"
         }
         if query.contains("~/") {
             query = query.replacingOccurrences(of: "~/", with: "\(HOME.string)/")

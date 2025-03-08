@@ -15,9 +15,9 @@ final class QuickLooker: QLPreviewPanelDataSource {
         shared = QuickLooker(urls: [url])
         shared?.quicklook()
     }
-    static func quicklook(urls: [URL]) {
+    static func quicklook(urls: [URL], selectedItemIndex: Int = 0) {
         shared = QuickLooker(urls: urls)
-        shared?.quicklook()
+        shared?.quicklook(selectedItemIndex: selectedItemIndex)
     }
 
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
@@ -28,14 +28,14 @@ final class QuickLooker: QLPreviewPanelDataSource {
         urls[safe: index] as NSURL?
     }
 
-    func quicklook() {
+    func quicklook(selectedItemIndex: Int = 0) {
         guard let ql = QLPreviewPanel.shared() else { return }
 
         focus()
         ql.makeKeyAndOrderFront(nil)
         ql.orderFrontRegardless()
         ql.dataSource = self
-        ql.currentPreviewItemIndex = 0
+        ql.currentPreviewItemIndex = selectedItemIndex
         ql.reloadData()
     }
 }

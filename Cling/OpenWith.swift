@@ -109,6 +109,10 @@ struct OpenWithActionButtons: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) { buttons }
                 }
+                Divider().frame(height: 16)
+                ShareButton(urls: selectedResults.map(\.url))
+                    .bold()
+                    .buttonStyle(BorderlessTextButton())
             }
         }
         .font(.system(size: 10))

@@ -57,6 +57,12 @@ struct ContentView: View {
         ZStack(alignment: .topTrailing) {
             pinButton.offset(x: -10, y: 5)
             content
+                .onAppear {
+                    focused = .search
+                    mainAsyncAfter(ms: 100) {
+                        focused = .search
+                    }
+                }
                 .disabled(!wm.mainWindowActive)
         }
     }
@@ -74,10 +80,16 @@ struct ContentView: View {
                     guard focused == .list else {
                         return .ignored
                     }
-                    QuickLooker.quicklook(urls: selectedResults.map(\.url))
+                    QuickLooker.quicklook(
+                        urls: selectedResults.count > 1 ? selectedResults.map(\.url) : results.map(\.url),
+                        selectedItemIndex: selectedResults.count == 1 ? (results.firstIndex(of: selectedResults.first!) ?? 0) : 0
+                    )
                     return .handled
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .contextMenu {
+                    RightClickMenu(selectedResults: $selectedResults)
+                }
 
             if wm.mainWindowActive {
                 ActionButtons(selectedResults: $selectedResults, focused: $focused)
@@ -94,9 +106,6 @@ struct ContentView: View {
         }
         .padding([.top, .leading, .trailing])
         .padding(.bottom, 4)
-        .onAppear {
-            focused = .search
-        }
         .onKeyPress(keys: Set(scriptManager.scriptShortcuts.values.map { KeyEquivalent($0) }), phases: [.down]) { keyPress in
             guard scriptManager.process == nil, keyPress.modifiers == [.command, .control] else { return .ignored }
 
@@ -145,49 +154,100 @@ struct ContentView: View {
     @State private var selectedResults = Set<FilePath>()
 
     @Default(.folderFilters) private var folderFilters
+    @Default(.quickFilters) private var quickFilters
 
     private var folderFilterPicker: some View {
-        Menu {
-            Picker(selection: $fuzzy.folderFilter) {
-                ForEach(folderFilters, id: \.self) { filter in
-                    (
-                        Text("\(filter.id)\n") +
-                            Text(filter.folders.map(\.shellString).joined(separator: ", "))
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    )
-                    .tag(filter as FolderFilter?)
-                    .help("Searches in \(filter.folders.map(\.shellString).joined(separator: ", "))")
-                    .ifLet(filter.key) { view, key in
-                        view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
-                    }
-                    .truncationMode(.tail)
+        Picker(selection: $fuzzy.folderFilter) {
+            ForEach(folderFilters, id: \.self) { filter in
+                (
+                    Text("\(filter.id)\n") +
+                        Text(filter.folders.map(\.shellString).joined(separator: ", "))
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                )
+                .tag(filter as FolderFilter?)
+                .help("Searches in \(filter.folders.map(\.shellString).joined(separator: ", "))")
+                .ifLet(filter.key) { view, key in
+                    view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
                 }
+                .truncationMode(.tail)
+            }
+
+            if let filter = fuzzy.folderFilter, !folderFilters.contains(filter) {
                 Divider()
-                Text("Whole disk").tag(nil as FolderFilter?)
-                    .help("Searches the whole disk without any filters")
-                    .keyboardShortcut(.escape, modifiers: [.option])
-
-                if let filter = fuzzy.folderFilter, !folderFilters.contains(filter) {
-                    Divider()
-                    (
-                        Text("\(filter.id)\n") +
-                            Text(filter.folders.map(\.shellString).joined(separator: ", "))
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    )
-                    .tag(filter as FolderFilter?)
-                    .help("Searches in \(filter.folders.map(\.shellString).joined(separator: ", "))")
-                    .truncationMode(.tail)
-
+                (
+                    Text("\(filter.id)\n") +
+                        Text(filter.folders.map(\.shellString).joined(separator: ", "))
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                )
+                .tag(filter as FolderFilter?)
+                .help("Searches in \(filter.folders.map(\.shellString).joined(separator: ", "))")
+                .truncationMode(.tail)
+            }
+        } label: { Text("Folder filter") }
+            .labelsHidden()
+            .pickerStyle(.inline)
+    }
+    private var quickFilterPicker: some View {
+        Picker(selection: $fuzzy.quickFilter) {
+            ForEach(quickFilters, id: \.self) { filter in
+                (
+                    Text("\(filter.id)\n") +
+                        Text(filter.query)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                )
+                .tag(filter as QuickFilter?)
+                .help("Searches with query: \(filter.query)")
+                .ifLet(filter.key) { view, key in
+                    view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
                 }
-            } label: {}
-                .labelsHidden()
-                .pickerStyle(.inline)
+                .truncationMode(.tail)
+            }
+
+            if let filter = fuzzy.quickFilter, !quickFilters.contains(filter) {
+                Divider()
+                (
+                    Text("\(filter.id)\n") +
+                        Text(filter.query)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                )
+                .tag(filter as QuickFilter?)
+                .help("Searches with query: \(filter.query)")
+                .truncationMode(.tail)
+            }
+        } label: { Text("Quick filter") }
+            .labelsHidden()
+            .pickerStyle(.inline)
+    }
+    private var filterPicker: some View {
+        Menu {
+            Section(header: Text("Folder filter")) {
+                folderFilterPicker
+            }
+            Section(header: Text("Quick filter")) {
+                quickFilterPicker
+            }
+            Button("All files") {
+                fuzzy.folderFilter = nil
+                fuzzy.quickFilter = nil
+            }
+            .help("Searches all indexed files without any filters")
+            .keyboardShortcut(.escape, modifiers: [.option])
         } label: {
             HStack(spacing: 2) {
                 Image(systemName: "folder.fill")
+                if let filter = fuzzy.quickFilter {
+                    Text(filter.id)
+                        .fontWeight(.semibold)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 if let filter = fuzzy.folderFilter {
+                    Text(" in ")
+                        .foregroundStyle(.secondary)
                     Text(filter.id)
                         .fontWeight(.semibold)
                         .lineLimit(1)
@@ -201,29 +261,44 @@ struct ContentView: View {
         .onChange(of: fuzzy.folderFilter) {
             fuzzy.sendQuery(fuzzy.query)
         }
+        .onChange(of: fuzzy.quickFilter) {
+            fuzzy.sendQuery(fuzzy.query)
+        }
     }
 
-    private func handleFolderFilterKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
+    private func handleFilterKeyPress(_ keyPress: KeyPress) -> KeyPress.Result {
         guard keyPress.modifiers == [.option] else { return .ignored }
         guard keyPress.key != .escape else {
             fuzzy.folderFilter = nil
+            fuzzy.quickFilter = nil
             return .handled
         }
 
-        guard let filter = folderFilters.first(where: { $0.keyEquivalent == keyPress.key }) else {
-            return .ignored
+        if let filter = folderFilters.first(where: { $0.keyEquivalent == keyPress.key }) {
+            fuzzy.folderFilter = filter
+            return .handled
         }
-        fuzzy.folderFilter = filter
-        return .handled
+        if let filter = quickFilters.first(where: { $0.keyEquivalent == keyPress.key }) {
+            fuzzy.quickFilter = filter
+            return .handled
+        }
+        return .ignored
     }
 
     private var searchSection: some View {
         HStack {
-            folderFilterPicker
+            filterPicker
             ZStack(alignment: .trailing) {
                 searchBar
-                    .onKeyPress(keys: Set(folderFilters.compactMap(\.keyEquivalent) + [.escape]), phases: [.down], action: handleFolderFilterKeyPress)
+                    .onKeyPress(
+                        keys: Set(folderFilters.compactMap(\.keyEquivalent) + quickFilters.compactMap(\.keyEquivalent) + [.escape]),
+                        phases: [.down], action: handleFilterKeyPress
+                    )
                 HStack {
+                    if !fuzzy.query.isEmpty {
+                        QuickFilterSaverView()
+                            .keyboardShortcut("s")
+                    }
                     Text("press / to focus")
                         .round(10)
                         .foregroundStyle(.secondary)
@@ -232,6 +307,7 @@ struct ContentView: View {
             }
         }
     }
+
     private var searchBar: some View {
         TextField("Search", text: $fuzzy.query)
             .textFieldStyle(.roundedBorder)
@@ -316,7 +392,7 @@ struct ContentView: View {
         }.hfill(.leading)
     }
 
-    var results: [FilePath] {
+    private var results: [FilePath] {
         fuzzy.noQuery ? fuzzy.recents : fuzzy.results
     }
 

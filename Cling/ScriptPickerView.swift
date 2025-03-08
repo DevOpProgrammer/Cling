@@ -319,6 +319,7 @@ struct ScriptActionButtons: View {
             isPresentingScriptPicker = true
         }
         .keyboardShortcut("x", modifiers: [.command])
+        .disabled(focused.wrappedValue == .search)
         .help("Run the selected files through a script")
         .sheet(isPresented: $isPresentingScriptPicker) {
             ScriptPickerView(fileURLs: selectedResults.map(\.url))

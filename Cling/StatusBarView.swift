@@ -5,9 +5,13 @@
 //  Created by Alin Panaitiu on 08.02.2025.
 //
 
+import Defaults
 import SwiftUI
 
 struct StatusBarView: View {
+    @Default(.triggerKeys) private var triggerKeys
+    @Default(.showAppKey) private var showAppKey
+
     var body: some View {
         HStack {
             Text("Syntax:")
@@ -17,7 +21,7 @@ struct StatusBarView: View {
 
             Spacer()
 
-            Text("**`Right Command + /`** to show/hide").padding(.trailing, 2)
+            Text("**`\(triggerKeys.shortReadableStr) + \(showAppKey.character)`** to show/hide").padding(.trailing, 2)
 
             Button(action: {
                 fuzzy.refresh(fullReindex: NSEvent.modifierFlags.contains(.option))

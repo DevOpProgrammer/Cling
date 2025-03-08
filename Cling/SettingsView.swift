@@ -154,6 +154,14 @@ struct SettingsView: View {
                             .round(11, weight: .regular).foregroundColor(.secondary)
                     ).fixedSize()
                     Spacer()
+
+                    Button(action: { showHelp.toggle() }) {
+                        Image(systemName: "questionmark.circle").foregroundColor(.secondary)
+                    }
+                    .sheet(isPresented: $showHelp) {
+                        IgnoreHelpText().padding()
+                    }.buttonStyle(BorderlessTextButton())
+
                     Button("Edit Ignore File") {
                         NSWorkspace.shared.open([fsignore.url], withApplicationAt: editorApp.fileURL ?? "/Applications/TextEdit.app".fileURL!, configuration: .init(), completionHandler: { _, _ in })
                     }.truncationMode(.middle)
@@ -184,9 +192,54 @@ struct SettingsView: View {
         }
     }
 
+    @State private var showHelp = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
 
     @Default(.editorApp) private var editorApp
     @Default(.terminalApp) private var terminalApp
+}
+
+struct IgnoreHelpText: View {
+    var body: some View {
+        ScrollView {
+            Text("""
+            **Pattern syntax:**
+
+            1. **Wildcards**: You can use asterisks (`*`) as wildcards to match multiple characters or directories at any level. For example, `*.jpg` will match all files with the .jpg extension, such as `image.jpg` or `photo.jpg`. Similarly, `*.pdf` will match any PDF files.
+
+            2. **Directory names**: You can specify directories in patterns by ending the pattern with a slash (/). For instance, `images/` will match all files or directories named "images" or residing within an "images" directory.
+
+            3. **Negation**: Prefixing a pattern with an exclamation mark (!) negates the pattern, instructing the app to include files that would otherwise be excluded. For example, `!important.pdf` would include a file named "important.pdf" even if it satisfies other exclusion patterns.
+
+            4. **Comments**: You can include comments by adding a hash symbol (`#`) at the beginning of the line. These comments are ignored by the app and serve as helpful annotations for humans.
+
+            *More complex patterns can be found in the [gitignore documentation](https://git-scm.com/docs/gitignore#_pattern_format).*
+
+            **Examples:**
+
+            `# Ignore all hidden files starting with a period character (dotfiles)`
+            `.*`
+            ` `
+            `# Ignore all files and subfolders of app bundles`
+            `*.app/*`
+            ` `
+            `# Exclude all files in a "DontSearch" directory`
+            `DontSearch/`
+            ` `
+            `# Exclude all files with the `.temp` extension`
+            `*.temp`
+            ` `
+            `# Exclude invoices (PDF files starting with "invoice-")`
+            `invoice-*.pdf`
+            ` `
+            `# Exclude a specific file named "confidential.pdf"`
+            `confidential.pdf`
+            ` `
+            `# Include a specific file named "important.pdf" even if it matches other patterns`
+            `!important.pdf`
+            """)
+            .foregroundColor(.secondary)
+        }
+    }
 }

@@ -172,6 +172,10 @@ struct ActionButtons: View {
         fuzzy.results = fuzzy.results.filter { !removed.contains($0) && $0.exists }
     }
 
+    private var results: [FilePath] {
+        fuzzy.noQuery ? fuzzy.recents : fuzzy.results
+    }
+
     private var quicklookButton: some View {
         Button(action: quicklook) {
             Text("⌘Y Quicklook")
@@ -245,7 +249,10 @@ struct ActionButtons: View {
     }
 
     private func quicklook() {
-        QuickLooker.quicklook(urls: selectedResults.map(\.url))
+        QuickLooker.quicklook(
+            urls: selectedResults.count > 1 ? selectedResults.map(\.url) : results.map(\.url),
+            selectedItemIndex: selectedResults.count == 1 ? (results.firstIndex(of: selectedResults.first!) ?? 0) : 0
+        )
     }
 
     private func openSelectedResults() {
