@@ -38,6 +38,10 @@ struct FolderFilter: Identifiable, Hashable, Codable, Defaults.Serializable {
     var keyEquivalent: KeyEquivalent? {
         key.map { KeyEquivalent($0) }
     }
+
+    func withKey(_ key: Character?) -> FolderFilter {
+        FolderFilter(id: id, folders: folders, key: key)
+    }
 }
 
 struct QuickFilter: Identifiable, Hashable, Codable, Defaults.Serializable {

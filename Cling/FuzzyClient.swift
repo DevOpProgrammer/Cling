@@ -121,6 +121,7 @@ class FuzzyClient {
     }
 
     var serverProcess: LocalProcess? { terminal.running ? terminal.process : nil }
+    var indexExists: Bool { searchScopeIndexes.contains(where: \.exists) }
     var indexIsStale: Bool {
         searchScopeIndexes.contains {
             !$0.exists
@@ -149,6 +150,10 @@ class FuzzyClient {
         ].compactMap { $0 }
     }
 
+    static func forceStopFZF() {
+        _ = shell("/usr/bin/pkill", args: ["-KILL", "-f", "Cling.app/Contents/Resources/fzf"], wait: true)
+    }
+
     // Methods
     func start() {
         asyncNow {
@@ -165,11 +170,15 @@ class FuzzyClient {
             icon: nil
         )
         FUZZY_SERVER.start()
-        _ = shell("/usr/bin/pkill", args: ["-KILL", "-f", "Cling.app/Contents/Resources/fzf"], wait: true)
+        Self.forceStopFZF()
 
         terminal = FZFTerminal { exitCode in
             log.debug("Terminal exited with code: \(exitCode ?? 0)")
             guard exitCode != SIGTERM, exitCode != SIGKILL else {
+                return
+            }
+            guard exitCode != 512 else {
+                Self.forceStopFZF()
                 return
             }
             self.startServer()
@@ -229,9 +238,12 @@ class FuzzyClient {
             let earliestModificationDate = searchScopeIndexes
                 .compactMap(\.modificationDate)
                 .min()
-            indexFiles(changedWithin: earliestModificationDate) { [self] in
-                watchFiles()
+            if indexExists {
                 startServer()
+            }
+            indexFiles(changedWithin: earliestModificationDate, pauseSearch: !indexExists) { [self] in
+                watchFiles()
+                restartServer()
             }
         } else {
             consolidateLiveIndex()
@@ -259,7 +271,7 @@ class FuzzyClient {
         let earliestModificationDate = fullReindex ? nil : searchScopeIndexes.compactMap(\.modificationDate).min()
 
         stopWatchingFiles()
-        indexFiles(changedWithin: earliestModificationDate) { [self] in
+        indexFiles(changedWithin: earliestModificationDate, pauseSearch: pauseSearch) { [self] in
             if !fullReindex {
                 consolidateLiveIndex()
             }
@@ -370,8 +382,10 @@ class FuzzyClient {
         indexProcesses.removeAll()
     }
 
-    func indexFiles(wait: Bool = false, changedWithin: Date? = nil, onFinish: (@MainActor () -> Void)? = nil) {
-        indexing = true
+    func indexFiles(wait: Bool = false, changedWithin: Date? = nil, pauseSearch: Bool = true, onFinish: (@MainActor () -> Void)? = nil) {
+        if pauseSearch {
+            indexing = true
+        }
         stopIndexers()
 
         let fdThreads = max(1, ProcessInfo.processInfo.activeProcessorCount / 3)
@@ -408,23 +422,11 @@ class FuzzyClient {
 
         let group = DispatchGroup()
         for command in commands {
-            let file: FileHandle
-            if changedWithin == nil || !command.output.exists {
-                FileManager.default.createFile(atPath: command.output.string, contents: nil, attributes: nil)
-                do {
-                    file = try FileHandle(forWritingTo: command.output.url)
-                } catch {
-                    log.error("Failed to open file \(command.output.string): \(error)")
-                    continue
-                }
-            } else {
-                do {
-                    file = try FileHandle(forUpdating: command.output.url)
-                    try file.seekToEnd()
-                } catch {
-                    log.error("Failed to open file \(command.output.string): \(error)")
-                    continue
-                }
+            let tempFile = FilePath.dir("/tmp/cling") / "\(UUID().uuidString).index"
+            FileManager.default.createFile(atPath: tempFile.string, contents: nil, attributes: [FileAttributeKey.posixPermissions: 0o600])
+            guard let file = try? FileHandle(forWritingTo: tempFile.url) else {
+                log.error("Failed to open temp file \(tempFile.string)")
+                continue
             }
 
             group.enter()
@@ -440,8 +442,7 @@ class FuzzyClient {
                     process.waitUntilExit()
                     file.closeFile()
 
-                    // Remove trailing slashes
-//                    shellProcDevNull("/usr/bin/sed", args: ["-i", "", "s|/$||g", command.output.string])?.waitUntilExit()
+                    _ = try? tempFile.move(to: command.output, force: true)
                 } catch {
                     log.error("Failed to run process: \(error)")
                 }
@@ -493,6 +494,7 @@ class FuzzyClient {
             return
         }
 
+        kill(serverProcess.shellPid, SIGCONT)
         serverProcess.terminate()
 
         for _ in 0 ..< Int(100) {
