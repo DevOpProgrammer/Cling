@@ -1,0 +1,17 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Cling</title>
+        <item>
+            <title>1.0</title>
+            <pubDate>Mon, 10 Mar 2025 22:50:46 +0200</pubDate>
+            <link>https://lowtechguys.com/cling</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Cling/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>1.0</sparkle:version>
+            <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Cling-1.0.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.0.dmg" length="12060140" type="application/octet-stream" sparkle:edSignature="gdNp67VOfzMWFc0MLttQMdvX6eD+g5eseKK+G4+v7Y5PwjpmmKHaNmgEfR8NjA6y0HAHtzhQHR+AOdpOOUCjBg=="/>
+        </item>
+    </channel>
+</rss>

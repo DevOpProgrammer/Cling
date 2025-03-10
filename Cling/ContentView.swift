@@ -265,22 +265,26 @@ struct ContentView: View {
         HStack(spacing: 20) {
             HStack {
                 Text("Name").fontWeight(fuzzy.sortField == .name ? .bold : .medium)
-                sortButton(.name, defaultReverse: false)
+                sortButton(.name, defaultReverse: false).keyboardShortcut("1", modifiers: [.control])
+                    .help("Sort by name (Control-1)")
             }
             .frame(width: nameWidth + 32, alignment: .leading)
             HStack {
                 Text("Path").fontWeight(fuzzy.sortField == .path ? .bold : .medium)
-                sortButton(.path, defaultReverse: false)
+                sortButton(.path, defaultReverse: false).keyboardShortcut("2", modifiers: [.control])
+                    .help("Sort by path (Control-2)")
             }
             .frame(width: pathWidth, alignment: .leading)
             HStack {
                 Text("Size").fontWeight(fuzzy.sortField == .size ? .bold : .medium)
-                sortButton(.size, defaultReverse: true)
+                sortButton(.size, defaultReverse: true).keyboardShortcut("3", modifiers: [.control])
+                    .help("Sort by size (Control-3)")
             }
             .frame(width: 80, alignment: .trailing)
             HStack {
                 Text("Date Modified").fontWeight(fuzzy.sortField == .date ? .bold : .medium)
-                sortButton(.date, defaultReverse: true)
+                sortButton(.date, defaultReverse: true).keyboardShortcut("4", modifiers: [.control])
+                    .help("Sort by date modified (Control-4)")
             }
             .frame(width: 160, alignment: .leading)
 
@@ -291,9 +295,10 @@ struct ContentView: View {
                 Image(systemName: "flag.pattern.checkered.circle" + (fuzzy.sortField == .score ? ".fill" : ""))
                     .font(.system(size: 20))
                     .opacity(fuzzy.sortField == .score ? 1 : 0.5)
-                    .help("Sort by score")
             }
             .buttonStyle(TextButton(borderColor: .clear))
+            .keyboardShortcut("0", modifiers: [.control])
+            .help("Sort by score (Control-0)")
 
         }.hfill(.leading)
     }

@@ -23,13 +23,22 @@ struct StatusBarView: View {
 
             Text("**`\(triggerKeys.shortReadableStr) + \(showAppKey.character)`** to show/hide").padding(.trailing, 2)
 
-            Button(action: {
-                fuzzy.refresh(fullReindex: NSEvent.modifierFlags.contains(.option))
-            }) {
-                Image(systemName: "arrow.clockwise").bold()
+            if !fuzzy.backgroundIndexing {
+                Button(action: {
+                    fuzzy.refresh(fullReindex: NSEvent.modifierFlags.contains(.option))
+                }) {
+                    Image(systemName: "arrow.clockwise").bold()
+                }
+                .help("Refresh (Option-click for full reindex)")
+                .buttonStyle(TextButton(borderColor: .clear))
+            } else {
+                HStack(spacing: 2) {
+                    Text("Indexing...")
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .controlSize(.mini)
+                }
             }
-            .help("Refresh (Option-click for full reindex)")
-            .buttonStyle(TextButton(borderColor: .clear))
 
             SettingsLink {
                 Image(systemName: "gearshape").bold()

@@ -77,6 +77,8 @@ class FuzzyClient {
 
     var noQuery = true
 
+    var backgroundIndexing = false
+
     var sortField: SortField = .score {
         didSet {
             guard sortField != oldValue else {
@@ -383,6 +385,7 @@ class FuzzyClient {
     }
 
     func indexFiles(wait: Bool = false, changedWithin: Date? = nil, pauseSearch: Bool = true, onFinish: (@MainActor () -> Void)? = nil) {
+        backgroundIndexing = true
         if pauseSearch {
             indexing = true
         }
@@ -391,8 +394,9 @@ class FuzzyClient {
         let fdThreads = max(1, ProcessInfo.processInfo.activeProcessorCount / 3)
         log.debug("Indexing files with \(fdThreads) threads")
 
-        let changedWithinArg = changedWithin.map { ["--changed-within", "@\($0.timeIntervalSince1970.intround)"] } ?? []
-        let commonArgs = ["-uu", "-j", "\(fdThreads)", "--one-file-system"] + changedWithinArg + ["--ignore-file", "\(HOME.string)/.fsignore"]
+        // let changedWithinArg = changedWithin.map { ["--changed-within", "@\($0.timeIntervalSince1970.intround)"] } ?? []
+//        let commonArgs = ["-uu", "-j", "\(fdThreads)", "--one-file-system"] + changedWithinArg + ["--ignore-file", "\(HOME.string)/.fsignore"]
+        let commonArgs = ["-uu", "-j", "\(fdThreads)", "--one-file-system"] + ["--ignore-file", "\(HOME.string)/.fsignore"]
         let commands = [
             Defaults[.searchScopes].contains(.home)
                 ? (
@@ -457,10 +461,12 @@ class FuzzyClient {
             group.wait()
             onFinish?()
             indexing = false
+            backgroundIndexing = false
         } else if let onFinish {
             let block = {
                 onFinish()
                 self.indexing = false
+                self.backgroundIndexing = false
             }
             group.notify(queue: .main, work: DispatchWorkItem(block: block))
         }
