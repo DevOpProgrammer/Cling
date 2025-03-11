@@ -11,7 +11,7 @@
             <sparkle:shortVersionString>1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Cling-1.0.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.0.dmg" length="12060140" type="application/octet-stream" sparkle:edSignature="gdNp67VOfzMWFc0MLttQMdvX6eD+g5eseKK+G4+v7Y5PwjpmmKHaNmgEfR8NjA6y0HAHtzhQHR+AOdpOOUCjBg=="/>
+            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.0.dmg" length="12058700" type="application/octet-stream" sparkle:edSignature="dLR29NepuDN4c+r0A63B04jXJrlk/kWfN9zW12c51pramtiOS445VGUdG373g8ytckhO4bcxrLEP2mPPVf4ZCA=="/>
         </item>
     </channel>
 </rss>

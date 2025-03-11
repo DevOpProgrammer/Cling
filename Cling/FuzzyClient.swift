@@ -127,7 +127,7 @@ class FuzzyClient {
     var indexIsStale: Bool {
         searchScopeIndexes.contains {
             !$0.exists
-                || ($0.timestamp ?? 0) < Date().addingTimeInterval(-3600).timeIntervalSince1970
+                || ($0.timestamp ?? 0) < Date().addingTimeInterval(-3600 * 72).timeIntervalSince1970
         }
     }
 
@@ -496,23 +496,15 @@ class FuzzyClient {
     }
 
     func stopServer() {
-        guard let serverProcess else {
-            return
-        }
-
-        kill(serverProcess.shellPid, SIGCONT)
-        serverProcess.terminate()
+        kill(-terminal.process.shellPid, SIGKILL)
+        Self.forceStopFZF()
 
         for _ in 0 ..< Int(100) {
-            if kill(serverProcess.shellPid, 0) == 0 {
+            if kill(terminal.process.shellPid, 0) == 0 {
                 usleep(10000)
             } else {
                 break
             }
-        }
-
-        if kill(serverProcess.shellPid, 0) == 0 {
-            kill(serverProcess.shellPid, SIGKILL)
         }
     }
 

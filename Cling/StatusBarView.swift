@@ -25,11 +25,11 @@ struct StatusBarView: View {
 
             if !fuzzy.backgroundIndexing {
                 Button(action: {
-                    fuzzy.refresh(fullReindex: NSEvent.modifierFlags.contains(.option))
+                    fuzzy.refresh(fullReindex: true)
                 }) {
                     Image(systemName: "arrow.clockwise").bold()
                 }
-                .help("Refresh (Option-click for full reindex)")
+                .help("Reindex files")
                 .buttonStyle(TextButton(borderColor: .clear))
             } else {
                 HStack(spacing: 2) {
