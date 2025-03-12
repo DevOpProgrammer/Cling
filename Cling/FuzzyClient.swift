@@ -39,6 +39,10 @@ let HARD_IGNORED: Set<String> = [
     liveIndex.string,
 ]
 
+let FAST_SHELL = [
+    "/bin/dash", "/bin/sh", "/bin/zsh", "/bin/bash",
+].first { $0.filePath?.exists ?? false } ?? "/bin/sh"
+
 enum SortField: String, CaseIterable, Identifiable {
     case score
     case name
@@ -162,6 +166,8 @@ class FuzzyClient {
             Defaults[.searchScopes].contains(.root) ? rootIndex : nil,
         ].compactMap { $0 }
     }
+
+    @ObservationIgnored var emptyQuery: Bool { query.isEmpty && folderFilter == nil && quickFilter == nil }
 
     static func forceStopFZF() {
         _ = shell("/usr/bin/pkill", args: ["-KILL", "-f", "Cling.app/Contents/Resources/fzf"], wait: true)
@@ -494,7 +500,7 @@ class FuzzyClient {
             "FZF_API_KEY=\(FZF_API_KEY)",
             "FZF_COLUMNS=80",
             "FZF_LINES=20",
-            "SHELL=/bin/dash",
+            "SHELL=\(FAST_SHELL)",
         ]
 
         terminal.process.startProcess(executable: "/bin/zsh", args: ["-c", command], environment: env)
@@ -544,6 +550,12 @@ class FuzzyClient {
             log.debug("Indexing files, skipping fetch")
             return
         }
+        if emptyQuery {
+            scoredResults = []
+            results = []
+            noQuery = true
+            return
+        }
 
         var request = URLRequest(url: FZF_URL)
         request.addValue(FZF_API_KEY, forHTTPHeaderField: "x-api-key")
@@ -570,7 +582,7 @@ class FuzzyClient {
                     }
                     self.scoredResults = (results.array as! [String]).compactMap(\.filePath).filter(\.exists)
                     self.results = self.sortedResults()
-                    if !self.query.isEmpty || self.folderFilter != nil || self.quickFilter != nil {
+                    if !emptyQuery {
                         self.noQuery = false
                     }
                 }

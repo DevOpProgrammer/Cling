@@ -44,8 +44,12 @@ struct ContentView: View {
         Button(action: {
             wm.pinned.toggle()
         }) {
-            Image(systemName: wm.pinned ? "pin.circle.fill" : "pin.circle")
+            HStack(spacing: 1) {
+                Image(systemName: wm.pinned ? "pin.circle.fill" : "pin.circle")
+                Text(wm.pinned ? "Unpin" : "Pin")
+            }
         }
+        .font(.round(10))
         .buttonStyle(.plain)
         .foregroundColor(.secondary)
         .keyboardShortcut(".")
@@ -53,9 +57,29 @@ struct ContentView: View {
         .help(wm.pinned ? "Unpin window (⌘.)" : "Pin window to keep it on top of other windows (⌘.)")
     }
 
+    var quitButton: some View {
+        Button(action: {
+            NSApp.terminate(nil)
+        }) {
+            HStack(spacing: 1) {
+                Image(systemName: "xmark.circle.fill")
+                Text("Quit")
+            }
+        }
+        .font(.round(10))
+        .buttonStyle(.plain)
+        .foregroundColor(.secondary)
+        .focusable(false)
+        .help("Quit Cling (⌘Q)")
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            pinButton.offset(x: -10, y: 5)
+            HStack {
+                pinButton
+                quitButton
+            }
+            .offset(x: -10, y: 5)
             content
                 .onAppear {
                     focused = .search

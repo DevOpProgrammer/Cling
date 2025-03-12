@@ -242,31 +242,22 @@ struct ScriptActionButtons: View {
                 .buttonStyle(BorderlessTextButton(color: .fg.warm.opacity(0.8)))
                 .help(scriptManager.process != nil ? "Terminate script" : "Clear process output")
 
-                Button(action: {
-                    let outSize = outputFile.fileSize() ?? 0
-                    let errSize = errorFile.fileSize() ?? 0
-
-                    guard outSize + errSize > 0 else {
-                        return
-                    }
-
-                    if outSize + errSize < 100 * 1024 {
-                        showOutput = true
-                    } else {
-                        scriptManager.combinedOutputFile?.edit()
-                    }
-                }) {
+                Button(action: showProcessOutput) {
                     HStack(spacing: 1) {
                         if scriptManager.process != nil {
                             ProgressView()
                                 .progressViewStyle(.circular)
                                 .controlSize(.mini)
                                 .padding(.trailing, 5)
-
+                            Text(script.lastPathComponent.ns.deletingPathExtension)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        } else {
+                            Image(systemName: "doc.text")
+                                .font(.heavy(10))
+                                .padding(.trailing, 5)
+                            Text("Script output").fixedSize()
                         }
-                        Text(script.lastPathComponent.ns.deletingPathExtension)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
                     }
                 }
                 .buttonStyle(TextButton(color: .fg.warm.opacity(0.8)))
@@ -281,6 +272,11 @@ struct ScriptActionButtons: View {
                     }
                 }
                 .help("View script output and errors")
+                .onChange(of: scriptManager.process) { old, new in
+                    if new == nil, old != nil, scriptManager.scriptsWithOutput.contains(script) {
+                        showProcessOutput()
+                    }
+                }
             }
         }
     }
@@ -336,6 +332,25 @@ struct ScriptActionButtons: View {
                 Text("\(key.uppercased())").mono(10, weight: .bold).foregroundColor(.fg.warm).roundbg(color: .bg.primary.opacity(0.2))
                 Text(" \(script.lastPathComponent.ns.deletingPathExtension)")
             }
+        }
+    }
+
+    private func showProcessOutput() {
+        guard let outputFile = scriptManager.lastOutputFile, let errorFile = scriptManager.lastErrorFile else {
+            return
+        }
+
+        let outSize = outputFile.fileSize() ?? 0
+        let errSize = errorFile.fileSize() ?? 0
+
+        guard outSize + errSize > 0 else {
+            return
+        }
+
+        if outSize + errSize < 100 * 1024 {
+            showOutput = true
+        } else {
+            scriptManager.combinedOutputFile?.edit()
         }
     }
 
