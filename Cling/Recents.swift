@@ -39,6 +39,7 @@ let sortComparator: MDQuerySortComparatorFunction = { values1, values2, context 
 }
 
 extension MDQuery {
+    @MainActor
     func getPaths() -> [FilePath] {
         var paths: [FilePath] = []
         for i in 0 ..< MDQueryGetResultCount(self) {
@@ -49,7 +50,14 @@ extension MDQuery {
             guard let path = MDItemCopyAttribute(item, kMDItemPath) as? String else {
                 continue
             }
-            paths.append(FilePath(path))
+            let filePath = FilePath(path)
+            if FUZZY.removedFiles.contains(filePath.string) {
+                continue
+            }
+            if filePath.starts(with: HOME), filePath.string.isIgnored(in: fsignoreString) {
+                continue
+            }
+            paths.append(filePath)
         }
         return paths
     }
@@ -67,9 +75,9 @@ let queryFinishCallback: CFNotificationCallback = { notificationCenter, observer
     }
 
     let query: MDQuery = unsafeBitCast(object, to: MDQuery.self)
-    let paths = query.getPaths()
 
     mainActor {
+        let paths = query.getPaths()
         FUZZY.recents = paths
     }
 }
@@ -87,9 +95,9 @@ let queryUpdateCallback: CFNotificationCallback = { notificationCenter, observer
     }
 
     let query: MDQuery = unsafeBitCast(object, to: MDQuery.self)
-    let paths = query.getPaths()
 
     mainActor {
+        let paths = query.getPaths()
         FUZZY.recents = paths
     }
 

@@ -20,11 +20,13 @@ struct SettingsView: View {
     @Default(.checkForUpdates) private var checkForUpdates
     @Default(.updateCheckInterval) private var updateCheckInterval
     @Default(.showWindowAtLaunch) private var showWindowAtLaunch
+    @Default(.keepWindowOpenWhenDefocused) private var keepWindowOpenWhenDefocused
     @Default(.maxResultsCount) private var maxResultsCount
     @Default(.enableGlobalHotkey) private var enableGlobalHotkey
     @Default(.showAppKey) private var showAppKey
     @Default(.triggerKeys) private var triggerKeys
     @Default(.searchScopes) private var searchScopes
+    @Default(.fasterSearchLessOptimalResults) private var fasterSearchLessOptimalResults
 
     private func selectApp(type: String, onCompletion: @escaping (URL) -> Void) {
         let panel = NSOpenPanel()
@@ -95,6 +97,13 @@ struct SettingsView: View {
                         .round(11, weight: .regular).foregroundColor(.secondary)
                 ).fixedSize()
             }
+            Toggle(isOn: $keepWindowOpenWhenDefocused) {
+                (
+                    Text("Keep window open when the app is in background")
+                        + Text("\nDon't hide the window when clicking outside the app or when focusing another app")
+                        .round(11, weight: .regular).foregroundColor(.secondary)
+                ).fixedSize()
+            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Toggle("Global hotkey", isOn: $enableGlobalHotkey)
@@ -159,13 +168,36 @@ struct SettingsView: View {
                         Image(systemName: "questionmark.circle").foregroundColor(.secondary)
                     }
                     .sheet(isPresented: $showHelp) {
-                        IgnoreHelpText().padding()
+                        VStack(spacing: 5) {
+                            HStack {
+                                Button(action: { showHelp = false }) {
+                                    Image(systemName: "xmark")
+                                        .font(.heavy(7))
+                                        .foregroundColor(.bg.warm)
+                                }
+                                .buttonStyle(FlatButton(color: .fg.warm.opacity(0.6), circle: true, horizontalPadding: 5, verticalPadding: 5))
+                                .padding(.top, 8).padding(.leading, 8)
+                                Spacer()
+                            }
+
+                            IgnoreHelpText().padding()
+                        }
+                        .frame(width: 500)
                     }.buttonStyle(BorderlessTextButton())
 
                     Button("Edit Ignore File") {
                         NSWorkspace.shared.open([fsignore.url], withApplicationAt: editorApp.fileURL ?? "/Applications/TextEdit.app".fileURL!, configuration: .init(), completionHandler: { _, _ in })
                     }.truncationMode(.middle)
                 }
+
+                Toggle(isOn: $fasterSearchLessOptimalResults) {
+                    (
+                        Text("Faster search, with less optimal results")
+                            + Text("\nUses a more speed oriented algorithm but may return less accurate results")
+                            .round(11, weight: .regular).foregroundColor(.secondary)
+                    ).fixedSize()
+                }
+
             }
 
             if let updater = updateManager.updater {

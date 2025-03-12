@@ -11,13 +11,14 @@ class FuzzyServer {
             let port = NWEndpoint.Port(rawValue: SERVER_PORT)!
             listener = try NWListener(using: .tcp, on: port)
             listener?.newConnectionHandler = { connection in
+                log.debug("Got new results from fzf")
                 mainActor { FUZZY.fetchResults() }
                 connection.cancel()
             }
             listener?.start(queue: queue)
-            print("Listening on port \(port)")
+            log.info("Listening on port \(port)")
         } catch {
-            print("Failed to start listener: \(error)")
+            log.error("Failed to start listener: \(error)")
         }
     }
 

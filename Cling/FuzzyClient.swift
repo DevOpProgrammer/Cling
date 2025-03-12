@@ -79,6 +79,10 @@ class FuzzyClient {
 
     var backgroundIndexing = false
 
+    var hasFullDiskAccess: Bool = FullDiskAccess.isGranted
+
+    @ObservationIgnored @Setting(.fasterSearchLessOptimalResults) var fasterSearchLessOptimalResults: Bool
+
     var sortField: SortField = .score {
         didSet {
             guard sortField != oldValue else {
@@ -95,9 +99,16 @@ class FuzzyClient {
             results = sortedResults()
         }
     }
+
     var query = "" {
         didSet {
-            sendQuery(query)
+            if fasterSearchLessOptimalResults {
+                sendQuery(query)
+            } else {
+                querySendTask = mainAsyncAfter(ms: 70) { [self] in
+                    sendQuery(query)
+                }
+            }
         }
     }
     var indexing = false {
@@ -203,10 +214,12 @@ class FuzzyClient {
 
         indexFolder.mkdir(withIntermediateDirectories: true, permissions: 0o700)
         if FullDiskAccess.isGranted {
+            hasFullDiskAccess = true
             startIndex()
         } else {
             fullDiskAccessChecker = Repeater(every: 1) {
                 guard FullDiskAccess.isGranted else { return }
+                self.hasFullDiskAccess = true
                 self.fullDiskAccessChecker = nil
                 self.startIndex()
             }
@@ -236,14 +249,14 @@ class FuzzyClient {
             }
         }
 
-        if indexIsStale {
-            let earliestModificationDate = searchScopeIndexes
-                .compactMap(\.modificationDate)
-                .min()
-            if indexExists {
-                startServer()
+        if !indexExists {
+            indexFiles(pauseSearch: true) { [self] in
+                watchFiles()
+                restartServer()
             }
-            indexFiles(changedWithin: earliestModificationDate, pauseSearch: !indexExists) { [self] in
+        } else if indexIsStale, batteryLevel() > 0.3 {
+            startServer()
+            indexFiles(pauseSearch: false) { [self] in
                 watchFiles()
                 restartServer()
             }
@@ -254,29 +267,27 @@ class FuzzyClient {
         }
 
         indexChecker = Repeater(every: 60 * 60, name: "Index Checker", tolerance: 60 * 60) { [self] in
-            refresh(fullReindex: false, pauseSearch: false)
+            guard batteryLevel() > 0.3 else {
+                return
+            }
+            refresh(pauseSearch: false)
         }
     }
 
-    func refresh(fullReindex: Bool = false, pauseSearch: Bool = true) {
+    func refresh(pauseSearch: Bool = true) {
         guard !indexing, FullDiskAccess.isGranted else {
             return
         }
 
         if pauseSearch {
             indexing = true
-            operation = fullReindex ? "Reindexing all files" : "Reindexing changed files"
+            operation = "Reindexing filesystem"
             fetchTask?.cancel()
             queryTask?.cancel()
         }
 
-        let earliestModificationDate = fullReindex ? nil : searchScopeIndexes.compactMap(\.modificationDate).min()
-
         stopWatchingFiles()
-        indexFiles(changedWithin: earliestModificationDate, pauseSearch: pauseSearch) { [self] in
-            if !fullReindex {
-                consolidateLiveIndex()
-            }
+        indexFiles(pauseSearch: pauseSearch) { [self] in
             watchFiles()
             stopServer()
             startServer()
@@ -478,11 +489,12 @@ class FuzzyClient {
             .map { "\"\($0.string)\"" }
             .joined(separator: " ")
         let command =
-            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent(echo -n '' | nc -w 1 localhost \(SERVER_PORT))' --listen=localhost:7272"
+            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT) >/tmp/cling-fzf.log 2>/tmp/cling-fzf.log' --listen=localhost:27272"
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color") + [
             "FZF_API_KEY=\(FZF_API_KEY)",
             "FZF_COLUMNS=80",
             "FZF_LINES=20",
+            "SHELL=/bin/dash",
         ]
 
         terminal.process.startProcess(executable: "/bin/zsh", args: ["-c", command], environment: env)
@@ -568,6 +580,28 @@ class FuzzyClient {
         }
         fetchTask!.resume()
     }
+
+    func excludeFromIndex(paths: Set<FilePath>) {
+        let fileList = paths.map(\.string).joined(separator: "\n")
+        do {
+            let fileHandle = try FileHandle(forUpdating: fsignore.url)
+            fileHandle.seekToEndOfFile()
+            if let data = "\n\(fileList)".data(using: .utf8) {
+                fileHandle.write(data)
+            }
+            fileHandle.closeFile()
+        } catch {
+            log.error("Failed to write to fsignore: \(error.localizedDescription)")
+        }
+
+        removedFiles.formUnion(paths.map(\.string))
+        results = results.without(paths)
+        scoredResults = scoredResults.without(paths)
+        recents = recents.without(paths)
+
+        fetchResults()
+    }
+
     func sortedResults() -> [FilePath] {
         guard sortField != .score else {
             return scoredResults
@@ -719,6 +753,6 @@ func commonApplications(for urls: [URL]) -> [URL] {
 
 struct FzfResponse: Decodable { let matches: [Match] }
 
-let FZF_URL = URL(string: "http://127.0.0.1:7272")!
+let FZF_URL = URL(string: "http://127.0.0.1:27272")!
 
 @MainActor let FUZZY = FuzzyClient()

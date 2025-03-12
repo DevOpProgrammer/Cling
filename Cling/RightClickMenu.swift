@@ -13,6 +13,19 @@ struct RightClickMenu: View {
             Button("as JSON") { exportAs(type: .json) }
             Button("as plaintext") { exportAs(type: .plaintext) }
         }
+        Menu("Copy paths...") {
+            Button("separated by space") { copyPaths(separator: " ") }
+            Button("separated by space and quoted") { copyPaths(separator: " ", quoted: true) }
+            Button("separated by comma") { copyPaths(separator: ",") }
+            Button("with each file on a separate line") { copyPaths(separator: "\n") }
+        }
+        Menu("Copy filenames...") {
+            Button("separated by space") { copyFilenames(separator: " ") }
+            Button("separated by space and quoted") { copyFilenames(separator: " ", quoted: true) }
+            Button("separated by comma") { copyFilenames(separator: ",") }
+            Button("with each file on a separate line") { copyFilenames(separator: "\n") }
+                .keyboardShortcut("c", modifiers: [.command, .option, .control])
+        }
 
         Button("Copy files to...") {
             performFileOperation(.copy)
@@ -20,6 +33,9 @@ struct RightClickMenu: View {
 
         Button("Move files to...") {
             performFileOperation(.move)
+        }
+        Button("Exclude from index") {
+            FUZZY.excludeFromIndex(paths: selectedResults)
         }
     }
 
@@ -29,6 +45,22 @@ struct RightClickMenu: View {
 
     private enum FileOperation {
         case copy, move
+    }
+
+    private func copyPaths(separator: String, quoted: Bool = false) {
+        let filepaths = selectedResults.map { path in
+            quoted ? "\"\(path.string)\"" : path.string
+        }.joined(separator: separator)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(filepaths, forType: .string)
+    }
+
+    private func copyFilenames(separator: String, quoted: Bool = false) {
+        let filenames = selectedResults.map { path in
+            quoted ? "\"\(path.name.string)\"" : path.name.string
+        }.joined(separator: separator)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(filenames, forType: .string)
     }
 
     private func exportAs(type: ExportType) {

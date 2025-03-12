@@ -24,9 +24,7 @@ struct StatusBarView: View {
             Text("**`\(triggerKeys.shortReadableStr) + \(showAppKey.character)`** to show/hide").padding(.trailing, 2)
 
             if !fuzzy.backgroundIndexing {
-                Button(action: {
-                    fuzzy.refresh(fullReindex: true)
-                }) {
+                Button(action: { fuzzy.refresh() }) {
                     Image(systemName: "arrow.clockwise").bold()
                 }
                 .help("Reindex files")

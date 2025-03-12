@@ -63,6 +63,11 @@ struct ContentView: View {
                         focused = .search
                     }
                 }
+                .onChange(of: focused) {
+                    if !fuzzy.hasFullDiskAccess {
+                        focused = nil
+                    }
+                }
                 .disabled(!wm.mainWindowActive)
         }
     }
@@ -147,12 +152,42 @@ struct ContentView: View {
                     Text(fuzzy.operation)
                         .foregroundStyle(.secondary)
                         .medium(20)
+
+                    Text("Press **`\(triggerKeys.readableStr) + \(showAppKey.character)`** to show/hide Cling")
+                        .foregroundStyle(.secondary)
+                        .opacity(0.7)
+                        .padding(.top, 10)
+
+                }
+                .fill()
+                .background(.ultraThinMaterial)
+            )
+        }
+        .if(!fuzzy.hasFullDiskAccess) { view in
+            view.overlay(
+                VStack {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                    Text("Waiting for Full Disk Access permissions to start indexing")
+                        .foregroundStyle(.secondary)
+                        .medium(20)
+                    Button("Open System Preferences") {
+                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!)
+                    }
+
+                    Text("Press **`\(triggerKeys.readableStr) + \(showAppKey.character)`** to show/hide Cling")
+                        .foregroundStyle(.secondary)
+                        .opacity(0.7)
+                        .padding(.top, 10)
+
                 }
                 .fill()
                 .background(.ultraThinMaterial)
             )
         }
     }
+    @Default(.triggerKeys) private var triggerKeys
+    @Default(.showAppKey) private var showAppKey
 
     @FocusState private var focused: FocusedField?
 
@@ -194,6 +229,7 @@ struct ContentView: View {
     private var searchSection: some View {
         HStack {
             FilterPicker()
+                .help("Quick Filters: narrow down results without typing often used queries")
 
             ZStack(alignment: .trailing) {
                 searchBar
@@ -218,14 +254,6 @@ struct ContentView: View {
         TextField("Search", text: $fuzzy.query)
             .textFieldStyle(.roundedBorder)
             .padding(.vertical)
-            .onChange(of: fuzzy.query) { _, newValue in
-                fuzzy.querySendTask = mainAsyncAfter(ms: 50) {
-                    fuzzy.sendQuery(newValue)
-                }
-//                fuzzy.lastQuerySendTask = mainAsyncAfter(ms: 500) {
-//                    fuzzy.sendQuery(newValue)
-//                }
-            }
             .focused($focused, equals: .search)
             .onKeyPress(.downArrow) {
                 focused = .list

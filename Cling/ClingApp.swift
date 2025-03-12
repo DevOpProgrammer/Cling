@@ -126,6 +126,9 @@ class AppDelegate: LowtechIndieAppDelegate {
             mainWindow?.alphaValue = 0.75
             return
         }
+        guard !Defaults[.keepWindowOpenWhenDefocused] else {
+            return
+        }
         WM.mainWindowActive = false
         mainWindow?.close()
     }
@@ -253,7 +256,7 @@ class WindowManager {
 
     var mainWindowActive = false {
         didSet {
-            guard !pinned else {
+            guard !pinned, !Defaults[.keepWindowOpenWhenDefocused] else {
                 return
             }
             FUZZY.suspended = !mainWindowActive
@@ -262,7 +265,6 @@ class WindowManager {
 
     func open(_ window: String) {
         if window == "main", NSApp.windows.first(where: { $0.title == "Cling" }) != nil {
-            print("Open main window")
             focus()
             AppDelegate.shared?.focusWindow()
             if windowToOpen != nil {
@@ -274,6 +276,25 @@ class WindowManager {
     }
 }
 @MainActor let WM = WindowManager()
+
+import IOKit.ps
+
+func batteryLevel() -> Double {
+    guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+          let sources: NSArray = IOPSCopyPowerSourcesList(snapshot)?.takeRetainedValue()
+    else { return 1 }
+
+    for ps in sources {
+        guard let info: NSDictionary = IOPSGetPowerSourceDescription(snapshot, ps as CFTypeRef)?.takeUnretainedValue(),
+              let capacity = info[kIOPSCurrentCapacityKey] as? Int,
+              let max = info[kIOPSMaxCapacityKey] as? Int
+        else { continue }
+
+        return (max > 0) ? (Double(capacity) / Double(max)) : Double(capacity)
+    }
+
+    return 1
+}
 
 @main
 struct ClingApp: App {
