@@ -26,7 +26,6 @@ let indexFolder: FilePath =
 let homeIndex: FilePath = indexFolder / "home.index"
 let libraryIndex: FilePath = indexFolder / "library.index"
 let rootIndex: FilePath = indexFolder / "root.index"
-let storedIndex: FilePath = indexFolder / "stored.index"
 let liveIndex: FilePath = indexFolder / "live.index"
 
 let PIDFILE = "/tmp/cling-\(NSUserName().safeFilename).pid".filePath!
@@ -35,7 +34,6 @@ let HARD_IGNORED: Set<String> = [
     homeIndex.string,
     libraryIndex.string,
     rootIndex.string,
-    storedIndex.string,
     liveIndex.string,
 ]
 
@@ -300,17 +298,37 @@ class FuzzyClient {
         }
     }
 
-    func consolidateStoredIndex() {
-        indexConsolidationTask = asyncNow {
-            guard storedIndex.exists, let string = try? String(contentsOf: storedIndex.url) else {
-                return
-            }
+    func appendToIndex(_ indexFile: FilePath, paths: [String]) {
+        guard !paths.isEmpty, Defaults[.searchScopes].contains(scopeForIndex(indexFile)) else {
+            return
+        }
 
-            let paths = string.components(separatedBy: .newlines).filter { !$0.isEmpty }
-            let uniquePaths = (NSOrderedSet(array: paths).array as! [String]).filter {
-                FileManager.default.fileExists(atPath: $0)
+        do {
+            if !indexFile.exists {
+                FileManager.default.createFile(atPath: indexFile.string, contents: nil, attributes: nil)
             }
-            FileManager.default.createFile(atPath: storedIndex.string, contents: uniquePaths.joined(separator: "\n").data(using: .utf8), attributes: nil)
+            let fileHandle = try FileHandle(forUpdating: indexFile.url)
+            fileHandle.seekToEndOfFile()
+            let content = paths.joined(separator: "\n") + "\n"
+            if let data = content.data(using: .utf8) {
+                fileHandle.write(data)
+            }
+            try fileHandle.close()
+        } catch {
+            log.error("Failed to append to index \(indexFile.string): \(error)")
+        }
+    }
+
+    func scopeForIndex(_ indexFile: FilePath) -> SearchScope {
+        switch indexFile {
+        case homeIndex:
+            .home
+        case libraryIndex:
+            .library
+        case rootIndex:
+            .root
+        default:
+            .home
         }
     }
 
@@ -320,19 +338,37 @@ class FuzzyClient {
         }
 
         do {
-            if !storedIndex.exists {
-                try liveIndex.copy(to: storedIndex)
-            } else {
-                let live = try String(contentsOf: liveIndex.url)
-                let file = try FileHandle(forUpdating: storedIndex.url)
-                file.seekToEndOfFile()
-                file.write(live.data(using: .utf8)!)
-                try file.close()
+            let liveContent = try String(contentsOf: liveIndex.url)
+            let paths = liveContent.components(separatedBy: .newlines).filter { !$0.isEmpty }
+            let uniquePaths = (NSOrderedSet(array: paths).array as! [String]).filter {
+                FileManager.default.fileExists(atPath: $0)
             }
+
+            var homePathsToAdd = [String]()
+            var libraryPathsToAdd = [String]()
+            var rootPathsToAdd = [String]()
+
+            let home = HOME.string
+            let library = "\(HOME.string)/Library"
+
+            for path in uniquePaths {
+                if path.starts(with: home) {
+                    if path.starts(with: library) {
+                        libraryPathsToAdd.append(path)
+                    } else {
+                        homePathsToAdd.append(path)
+                    }
+                } else {
+                    rootPathsToAdd.append(path)
+                }
+            }
+
+            appendToIndex(homeIndex, paths: homePathsToAdd)
+            appendToIndex(libraryIndex, paths: libraryPathsToAdd)
+            appendToIndex(rootIndex, paths: rootPathsToAdd)
         } catch {
             log.error("Failed to consolidate live index: \(error)")
         }
-        consolidateStoredIndex()
     }
 
     func stopWatchingFiles() {
@@ -490,12 +526,14 @@ class FuzzyClient {
     }
 
     func startServer() {
-        let indexFiles = (searchScopeIndexes + [storedIndex])
+        let indexFiles = searchScopeIndexes
             .filter(\.exists)
             .map { "\"\($0.string)\"" }
             .joined(separator: " ")
+        let query = constructQuery(query).trimmed
         let command =
-            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT) >/tmp/cling-fzf.log 2>/tmp/cling-fzf.log' --listen=localhost:27272"
+            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT)' --listen=localhost:27272"
+                + (query.isEmpty ? "" : " --query=\(query)")
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color") + [
             "FZF_API_KEY=\(FZF_API_KEY)",
             "FZF_COLUMNS=80",
@@ -574,7 +612,20 @@ class FuzzyClient {
             do {
                 let response = try JSONDecoder().decode(FzfResponse.self, from: data)
                 mainActor {
-                    let results = NSMutableOrderedSet(array: response.matches.prefix(Defaults[.maxResultsCount]).map(\.text))
+                    var indexedResults = response.matches.map(\.text)
+                    if !Defaults[.searchScopes].contains(.library) {
+                        let library = "\(HOME.string)/Library"
+                        indexedResults.removeAll { $0.starts(with: library) }
+                    }
+                    if !Defaults[.searchScopes].contains(.home) {
+                        let home = HOME.string
+                        let library = "\(HOME.string)/Library"
+                        indexedResults.removeAll { $0.starts(with: home) && !$0.starts(with: library) }
+                    }
+                    if !Defaults[.searchScopes].contains(.root) {
+                        indexedResults.removeAll { !$0.starts(with: HOME.string) }
+                    }
+                    let results = NSMutableOrderedSet(array: indexedResults.prefix(Defaults[.maxResultsCount]).arr)
 
                     results.minusSet(HARD_IGNORED)
                     if !self.removedFiles.isEmpty {
@@ -582,7 +633,7 @@ class FuzzyClient {
                     }
                     self.scoredResults = (results.array as! [String]).compactMap(\.filePath).filter(\.exists)
                     self.results = self.sortedResults()
-                    if !emptyQuery {
+                    if !self.emptyQuery {
                         self.noQuery = false
                     }
                 }
@@ -639,6 +690,21 @@ class FuzzyClient {
 
     }
 
+    func constructQuery(_ query: String) -> String {
+        var query = query
+        if let filter = folderFilter {
+            let folders = filter.folders.map { "^\($0.string)" }.joined(separator: " | ")
+            query = "\(folders) \(query)"
+        }
+        if let quickFilter {
+            query = "\(quickFilter.query) \(query)"
+        }
+        if query.contains("~/") {
+            query = query.replacingOccurrences(of: "~/", with: "\(HOME.string)/")
+        }
+        return query
+    }
+
     func sendQuery(_ query: String) {
         queryTask?.cancel()
         if query.isEmpty, folderFilter == nil, quickFilter == nil {
@@ -652,17 +718,7 @@ class FuzzyClient {
             return
         }
 
-        var query = query
-        if let filter = folderFilter {
-            let folders = filter.folders.map { "^\($0.string)" }.joined(separator: " | ")
-            query = "\(folders) \(query)"
-        }
-        if let quickFilter {
-            query = "\(quickFilter.query) \(query)"
-        }
-        if query.contains("~/") {
-            query = query.replacingOccurrences(of: "~/", with: "\(HOME.string)/")
-        }
+        let query = constructQuery(query)
 
         var request = URLRequest(url: FZF_URL)
         request.httpMethod = "POST"
