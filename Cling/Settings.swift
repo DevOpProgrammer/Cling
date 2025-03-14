@@ -59,6 +59,13 @@ struct QuickFilter: Identifiable, Hashable, Codable, Defaults.Serializable {
 
 }
 
+extension String {
+    var keyEquivalent: KeyEquivalent? {
+        guard let key = first else { return nil }
+        return KeyEquivalent(key)
+    }
+}
+
 let DEFAULT_FOLDER_FILTERS = [
     FolderFilter(id: "Applications", folders: ["/Applications".filePath!, "/System/Applications".filePath!], key: "a"),
     FolderFilter(id: "Home", folders: [HOME], key: "h"),
@@ -98,6 +105,8 @@ extension Defaults.Keys {
     static let fasterSearchLessOptimalResults = Key<Bool>("fasterSearchLessOptimalResults", default: false)
     static let folderFilters = Key<[FolderFilter]>("folderFilters", default: DEFAULT_FOLDER_FILTERS)
     static let maxResultsCount = Key<Int>("maxResultsCount", default: 30)
+    static let externalVolumes = Key<[FilePath]>("externalVolumes", default: [])
+    static let disabledVolumes = Key<[FilePath]>("disabledVolumes", default: [])
 
     static let enableGlobalHotkey = Key<Bool>("enableGlobalHotkey", default: true)
     static let showAppKey = Key<SauceKey>("showAppKey", default: SauceKey.slash)

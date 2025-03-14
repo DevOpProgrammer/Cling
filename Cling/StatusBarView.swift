@@ -31,7 +31,8 @@ struct StatusBarView: View {
                 .buttonStyle(TextButton(borderColor: .clear))
             } else {
                 HStack(spacing: 2) {
-                    Text("Indexing...")
+                    Text(fuzzy.operation)
+                        .truncationMode(.middle)
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle())
                         .controlSize(.mini)

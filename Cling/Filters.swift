@@ -10,6 +10,25 @@ struct FilterPicker: View {
     @State private var fuzzy: FuzzyClient = FUZZY
     @ObservedObject private var km = KM
 
+    private var enabledVolumes: [FilePath]? {
+        fuzzy.enabledVolumes.isEmpty ? nil : fuzzy.enabledVolumes
+    }
+
+    @ViewBuilder
+    private var volumePicker: some View {
+        if let enabledVolumes {
+            let volumes = ([FilePath.root] + enabledVolumes).enumerated().map { $0 }
+            Picker(selection: $fuzzy.volumeFilter) {
+                Text("Volumes").round(11).foregroundColor(.secondary).selectionDisabled()
+                ForEach(volumes, id: \.1) { i, volume in
+                    filterItem(volume, key: i > 9 ? nil : i.s.first)
+                }
+            } label: { Text("Volume filter") }
+                .labelsHidden()
+                .pickerStyle(.inline)
+        }
+    }
+
     private var folderFilterPicker: some View {
         Picker(selection: $fuzzy.folderFilter) {
             Text("Folder filters").round(11).foregroundColor(.secondary).selectionDisabled()
@@ -24,6 +43,21 @@ struct FilterPicker: View {
         } label: { Text("Folder filter") }
             .labelsHidden()
             .pickerStyle(.inline)
+    }
+
+    private func filterItem(_ filter: FilePath, key: Character?) -> some View {
+        (
+            Text((filter == .root ? (filter.url.volumeName ?? "Root") : filter.name.string) + "\n") +
+                Text(filter == .root ? "/" : filter.shellString)
+                .foregroundStyle(.secondary)
+                .font(.caption)
+        )
+        .tag(filter as FilePath?)
+        .help("Searches inside: \(filter.shellString)")
+        .ifLet(key) { view, key in
+            view.keyboardShortcut(KeyEquivalent(key), modifiers: [.option])
+        }
+        .truncationMode(.tail)
     }
 
     private func filterItem(_ filter: QuickFilter) -> some View {
@@ -175,10 +209,12 @@ struct FilterPicker: View {
             } else {
                 folderFilterPicker
                 quickFilterPicker
+                volumePicker
 
                 Button("All files") {
                     fuzzy.folderFilter = nil
                     fuzzy.quickFilter = nil
+                    fuzzy.volumeFilter = nil
                 }
                 .help("Searches all indexed files without any filters")
                 .keyboardShortcut(.escape, modifiers: [.option])
@@ -198,13 +234,24 @@ struct FilterPicker: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                if let filter = fuzzy.folderFilter {
+                if fuzzy.folderFilter != nil || fuzzy.volumeFilter != nil {
                     Text(" in ")
                         .foregroundStyle(.secondary)
-                    Text(filter.id)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    if let filter = fuzzy.volumeFilter {
+                        Text("\(Image(systemName: "externaldrive")) \(filter.name.string)")
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if fuzzy.folderFilter != nil {
+                            Text("❯").foregroundStyle(.secondary)
+                        }
+                    }
+                    if let filter = fuzzy.folderFilter {
+                        Text(filter.id)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                 }
             }
         }

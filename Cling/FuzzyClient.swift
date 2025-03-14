@@ -14,6 +14,7 @@ let FS_IGNORE = Bundle.main.url(forResource: "fsignore", withExtension: nil)!.ex
 let FS_IGNORE_RECENTS = Bundle.main.url(forResource: "fsignore-recents", withExtension: nil)!.existingFilePath!
 
 let FZF_API_KEY = UUID().uuidString
+let FZF_SERVER_PORT = 27272
 
 let fsignore: FilePath = HOME / ".fsignore"
 let fsignoreString = (HOME / ".fsignore").string
@@ -22,7 +23,7 @@ let fsignoreRecentsString = (HOME / ".fsignore-recents").string
 
 let indexFolder: FilePath =
     FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
-        .appendingPathComponent("Cling", isDirectory: true).filePath ?? "/tmp/cling-\(NSUserName())".filePath!
+        .appendingPathComponent("com.lowtechguys.Cling", isDirectory: true).filePath ?? "/tmp/cling-\(NSUserName())".filePath!
 let homeIndex: FilePath = indexFolder / "home.index"
 let libraryIndex: FilePath = indexFolder / "library.index"
 let rootIndex: FilePath = indexFolder / "root.index"
@@ -62,13 +63,15 @@ enum SortField: String, CaseIterable, Identifiable {
 
 @Observable @MainActor
 class FuzzyClient {
+    static let UNESCAPED_SHELL_CHARS = /([^\\])?(['${>&*#;?<`])/
+
     var clopIsAvailable = false
-    var terminal: FZFTerminal!
+    @ObservationIgnored var terminal: FZFTerminal!
     var removedFiles: Set<String> = []
     var results: [FilePath] = []
     var seenPaths: Set<String> = []
-    var childHandle: FileHandle?
-    var indexProcesses: [Process] = []
+    @ObservationIgnored var childHandle: FileHandle?
+    @ObservationIgnored var indexProcesses: [Process] = []
     var operation = " "
     var scoredResults: [FilePath] = []
     var recents: [FilePath] = []
@@ -76,14 +79,35 @@ class FuzzyClient {
     var openWithAppShortcuts: [URL: Character] = [:]
     var folderFilter: FolderFilter?
     var quickFilter: QuickFilter?
-
     var noQuery = true
-
     var backgroundIndexing = false
-
     var hasFullDiskAccess: Bool = FullDiskAccess.isGranted
 
     @ObservationIgnored @Setting(.fasterSearchLessOptimalResults) var fasterSearchLessOptimalResults: Bool
+
+    var disabledVolumes: [FilePath] = Defaults[.disabledVolumes]
+    var enabledVolumes: [FilePath] = getVolumes().filter { !Defaults[.disabledVolumes].contains($0) }
+    var externalIndexes: [FilePath] = getVolumes()
+        .filter { !Defaults[.disabledVolumes].contains($0) }
+        .map { volume in
+            indexFolder / "\(volume.name.string.replacingOccurrences(of: " ", with: "-")).index"
+        }
+
+    var externalVolumes: [FilePath] = getVolumes() { didSet {
+        enabledVolumes = externalVolumes.filter { !disabledVolumes.contains($0) }
+        externalIndexes = getExternalIndexes()
+
+        indexStaleExternalVolumes()
+    }}
+
+    var volumeFilter: FilePath? {
+        didSet {
+            guard volumeFilter != oldValue else {
+                return
+            }
+            restartServer()
+        }
+    }
 
     var sortField: SortField = .score {
         didSet {
@@ -162,12 +186,44 @@ class FuzzyClient {
             Defaults[.searchScopes].contains(.home) ? homeIndex : nil,
             Defaults[.searchScopes].contains(.library) ? libraryIndex : nil,
             Defaults[.searchScopes].contains(.root) ? rootIndex : nil,
-        ].compactMap { $0 }
+        ].compactMap { $0 } + externalIndexes
+    }
+
+    @ObservationIgnored var limitedSearchScopeIndexes: [FilePath]? {
+        if let volumeFilter, !volumeFilter.url.isRootVolume {
+            let index = indexFolder / "\(volumeFilter.name.string).index"
+            if index.exists {
+                return [index]
+            }
+        }
+
+        if let folderFilter {
+            let library = HOME / "Library"
+            if folderFilter.folders.allSatisfy({ $0.starts(with: library) && !$0.isOnExternalVolume }) {
+                return [libraryIndex]
+            } else if folderFilter.folders.allSatisfy({ $0.starts(with: HOME) && !$0.isOnExternalVolume }) {
+                return [homeIndex]
+            } else if folderFilter.folders.allSatisfy({ !$0.starts(with: HOME) && !$0.isOnExternalVolume }) {
+                return [rootIndex]
+            } else if let volumeFilter = enabledVolumes.first(where: { v in folderFilter.folders.allSatisfy { $0.starts(with: v) } }) {
+                return [indexFolder / "\(volumeFilter.name.string.replacingOccurrences(of: " ", with: "-")).index"]
+            }
+        } else if let volumeFilter, volumeFilter.url.isRootVolume {
+            let indexes = [
+                Defaults[.searchScopes].contains(.home) ? homeIndex : nil,
+                Defaults[.searchScopes].contains(.library) ? libraryIndex : nil,
+                Defaults[.searchScopes].contains(.root) ? rootIndex : nil,
+            ].compactMap { $0 }
+            return indexes.isEmpty ? nil : indexes
+        }
+
+        return nil
     }
 
     @ObservationIgnored var emptyQuery: Bool { query.isEmpty && folderFilter == nil && quickFilter == nil }
 
     static func forceStopFZF() {
+        log.debug("Force stopping FZF server")
         _ = shell("/usr/bin/pkill", args: ["-KILL", "-f", "Cling.app/Contents/Resources/fzf"], wait: true)
     }
 
@@ -190,12 +246,15 @@ class FuzzyClient {
         Self.forceStopFZF()
 
         terminal = FZFTerminal { exitCode in
-            log.debug("Terminal exited with code: \(exitCode ?? 0)")
+            log.debug("FZF exited with code: \(exitCode ?? 0)")
             guard exitCode != SIGTERM, exitCode != SIGKILL else {
                 return
             }
             guard exitCode != 512 else {
                 Self.forceStopFZF()
+                return
+            }
+            guard exitCode != 256 else {
                 return
             }
             self.startServer()
@@ -216,7 +275,19 @@ class FuzzyClient {
                 restartServer()
             }.store(in: &observers)
 
+        pub(.disabledVolumes)
+            .debounce(for: 2.0, scheduler: RunLoop.main)
+            .sink { [self] volumes in
+                disabledVolumes = volumes.newValue
+                enabledVolumes = externalVolumes.filter { !disabledVolumes.contains($0) }
+                externalIndexes = getExternalIndexes()
+
+                restartServer()
+            }.store(in: &observers)
+
         indexFolder.mkdir(withIntermediateDirectories: true, permissions: 0o700)
+        externalIndexes = getExternalIndexes()
+
         if FullDiskAccess.isGranted {
             hasFullDiskAccess = true
             startIndex()
@@ -228,6 +299,11 @@ class FuzzyClient {
                 self.startIndex()
             }
         }
+    }
+
+    func reloadResults() {
+        scoredResults = scoredResults
+        results = sortedResults()
     }
 
     func writeFSIgnoreRecents() {
@@ -257,17 +333,20 @@ class FuzzyClient {
             indexFiles(pauseSearch: true) { [self] in
                 watchFiles()
                 restartServer()
+                indexStaleExternalVolumes()
             }
         } else if indexIsStale, batteryLevel() > 0.3 {
             startServer()
             indexFiles(pauseSearch: false) { [self] in
                 watchFiles()
                 restartServer()
+                indexStaleExternalVolumes()
             }
         } else {
             consolidateLiveIndex()
             watchFiles()
             startServer()
+            indexStaleExternalVolumes()
         }
 
         indexChecker = Repeater(every: 60 * 60, name: "Index Checker", tolerance: 60 * 60) { [self] in
@@ -293,13 +372,13 @@ class FuzzyClient {
         stopWatchingFiles()
         indexFiles(pauseSearch: pauseSearch) { [self] in
             watchFiles()
-            stopServer()
-            startServer()
+            restartServer()
+            indexStaleExternalVolumes()
         }
     }
 
     func appendToIndex(_ indexFile: FilePath, paths: [String]) {
-        guard !paths.isEmpty, Defaults[.searchScopes].contains(scopeForIndex(indexFile)) else {
+        guard !paths.isEmpty, let scope = scopeForIndex(indexFile), Defaults[.searchScopes].contains(scope) else {
             return
         }
 
@@ -319,7 +398,7 @@ class FuzzyClient {
         }
     }
 
-    func scopeForIndex(_ indexFile: FilePath) -> SearchScope {
+    func scopeForIndex(_ indexFile: FilePath) -> SearchScope? {
         switch indexFile {
         case homeIndex:
             .home
@@ -328,7 +407,7 @@ class FuzzyClient {
         case rootIndex:
             .root
         default:
-            .home
+            nil
         }
     }
 
@@ -497,6 +576,8 @@ class FuzzyClient {
                     mainActor { self.indexProcesses.append(process) }
 
                     process.waitUntilExit()
+                    mainActor { self.indexProcesses.removeAll { $0 == process } }
+
                     file.closeFile()
 
                     _ = try? tempFile.move(to: command.output, force: true)
@@ -525,21 +606,28 @@ class FuzzyClient {
         }
     }
 
-    func startServer() {
-        let indexFiles = searchScopeIndexes
+    func startServer(indexes: [FilePath]? = nil) {
+        let indexes: [FilePath] = indexes ?? limitedSearchScopeIndexes ?? searchScopeIndexes
+
+        let allIndexFiles = indexes
             .filter(\.exists)
             .map { "\"\($0.string)\"" }
             .joined(separator: " ")
-        let query = constructQuery(query).trimmed
+        let liveIndexCommand = indexes.contains { f in scopeForIndex(f).map { scope in Defaults[.searchScopes].contains(scope) } ?? false }
+            ? "; tail -f \"\(liveIndex.string)\""
+            : ""
+        let query = constructQuery(query).trimmed.replacing(Self.UNESCAPED_SHELL_CHARS, with: { m in "\(m.1 ?? "")\\\(m.2)" }).replacingOccurrences(of: "\"", with: "")
         let command =
-            "{ /bin/cat \(indexFiles) ; tail -f \"\(liveIndex.string)\" } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT)' --listen=localhost:27272"
-                + (query.isEmpty ? "" : " --query=\(query)")
+            "{ /bin/cat \(allIndexFiles) \(liveIndexCommand) } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT)' --listen=localhost:\(FZF_SERVER_PORT)"
+                + (query.isEmpty ? "" : " --query=\"\(query)\"")
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color") + [
             "FZF_API_KEY=\(FZF_API_KEY)",
             "FZF_COLUMNS=80",
             "FZF_LINES=20",
             "SHELL=\(FAST_SHELL)",
         ]
+
+        log.verbose("Starting fzf server with command:\n\(command)")
 
         terminal.process.startProcess(executable: "/bin/zsh", args: ["-c", command], environment: env)
         guard terminal.running else {
@@ -564,9 +652,9 @@ class FuzzyClient {
         }
     }
 
-    func restartServer() {
+    func restartServer(indexes: [FilePath]? = nil) {
         stopServer()
-        startServer()
+        startServer(indexes: indexes)
     }
 
     func cleanup() {
@@ -584,10 +672,12 @@ class FuzzyClient {
 
     func fetchResults() {
         fetchTask?.cancel()
+
         guard !indexing else {
             log.debug("Indexing files, skipping fetch")
             return
         }
+
         if emptyQuery {
             scoredResults = []
             results = []
@@ -595,53 +685,75 @@ class FuzzyClient {
             return
         }
 
+        fetchFromMainServer()
+    }
+
+    func fetchFromMainServer() {
         var request = URLRequest(url: FZF_URL)
         request.addValue(FZF_API_KEY, forHTTPHeaderField: "x-api-key")
 
         fetchTask = URLSession.shared.dataTask(with: request) { [self] data, response, error in
             if let error {
-                log.error("Request error: \(error)")
+                log.error("Main server request error: \(error)")
                 return
             }
 
             guard let data else {
-                log.error("No data received")
+                log.error("No data received from main server")
                 return
             }
 
-            do {
-                let response = try JSONDecoder().decode(FzfResponse.self, from: data)
-                mainActor {
-                    var indexedResults = response.matches.map(\.text)
-                    if !Defaults[.searchScopes].contains(.library) {
-                        let library = "\(HOME.string)/Library"
-                        indexedResults.removeAll { $0.starts(with: library) }
-                    }
-                    if !Defaults[.searchScopes].contains(.home) {
-                        let home = HOME.string
-                        let library = "\(HOME.string)/Library"
-                        indexedResults.removeAll { $0.starts(with: home) && !$0.starts(with: library) }
-                    }
-                    if !Defaults[.searchScopes].contains(.root) {
-                        indexedResults.removeAll { !$0.starts(with: HOME.string) }
-                    }
-                    let results = NSMutableOrderedSet(array: indexedResults.prefix(Defaults[.maxResultsCount]).arr)
-
-                    results.minusSet(HARD_IGNORED)
-                    if !self.removedFiles.isEmpty {
-                        results.minusSet(self.removedFiles)
-                    }
-                    self.scoredResults = (results.array as! [String]).compactMap(\.filePath).filter(\.exists)
-                    self.results = self.sortedResults()
-                    if !self.emptyQuery {
-                        self.noQuery = false
-                    }
-                }
-            } catch {
-                log.error("JSON decode error: \(error)")
-            }
+            processSearchResults(data: data)
         }
         fetchTask!.resume()
+    }
+
+    nonisolated func processSearchResults(data: Data) {
+        let response: FzfResponse
+        do {
+            response = try JSONDecoder().decode(FzfResponse.self, from: data)
+        } catch {
+            log.error("JSON decode error: \(error)")
+            return
+        }
+
+        mainActor {
+            var indexedResults = response.matches.map(\.text)
+
+            // Filter results based on search scopes if needed
+            if !Defaults[.searchScopes].contains(.library) {
+                let library = "\(HOME.string)/Library"
+                indexedResults.removeAll { $0.starts(with: library) }
+            }
+            if !Defaults[.searchScopes].contains(.home) {
+                let home = HOME.string
+                let library = "\(HOME.string)/Library"
+                indexedResults.removeAll { $0.starts(with: home) && !$0.starts(with: library) }
+            }
+            if !Defaults[.searchScopes].contains(.root) {
+                indexedResults.removeAll { !$0.starts(with: HOME.string) }
+            }
+
+            let results = NSMutableOrderedSet(array: indexedResults.prefix(Defaults[.maxResultsCount]).arr)
+
+            results.minusSet(HARD_IGNORED)
+            if !self.removedFiles.isEmpty {
+                results.minusSet(self.removedFiles)
+            }
+            self.scoredResults = (results.array as! [String]).compactMap {
+                guard let path = $0.filePath else {
+                    return nil
+                }
+                path.cache($0.hasSuffix("/"), forKey: \.isDir)
+                return path
+            }.filter {
+                $0.memoz.isOnExternalVolume ? true : $0.exists
+            }
+            self.results = self.sortedResults()
+            if !self.emptyQuery {
+                self.noQuery = false
+            }
+        }
     }
 
     func excludeFromIndex(paths: Set<FilePath>) {
@@ -707,6 +819,7 @@ class FuzzyClient {
 
     func sendQuery(_ query: String) {
         queryTask?.cancel()
+
         if query.isEmpty, folderFilter == nil, quickFilter == nil {
             noQuery = true
             scoredResults = []
@@ -720,6 +833,7 @@ class FuzzyClient {
 
         let query = constructQuery(query)
 
+        // Send to main server
         var request = URLRequest(url: FZF_URL)
         request.httpMethod = "POST"
         request.addValue(FZF_API_KEY, forHTTPHeaderField: "x-api-key")
@@ -735,15 +849,13 @@ class FuzzyClient {
             if let error {
                 log.error("Request error: \(error)")
                 mainActor { [self] in
-                    if !terminal.running {
-                        stopServer()
-                        startServer()
+                    let running = terminal.running
+                    if !running {
+                        restartServer()
                     }
                 }
                 return
             }
-
-            log.debug("Sent query \(query)")
         }
         queryTask!.resume()
     }
@@ -821,6 +933,6 @@ func commonApplications(for urls: [URL]) -> [URL] {
 
 struct FzfResponse: Decodable { let matches: [Match] }
 
-let FZF_URL = URL(string: "http://127.0.0.1:27272")!
+let FZF_URL = URL(string: "http://127.0.0.1:\(FZF_SERVER_PORT)")!
 
 @MainActor let FUZZY = FuzzyClient()

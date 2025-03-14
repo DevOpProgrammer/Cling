@@ -79,7 +79,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "727be1d38d621abf6c494e7c52e255870f053a06"
+        "revision" : "6c5468970d6dd008f6b60b31eb0fb27555760f3f"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "0c34e4da899a1dd9183db04082d1ceb6e9c2b301",
-        "version" : "8.44.0"
+        "revision" : "21223d1c864db0561d91f48d80f269a363a1625d",
+        "version" : "8.47.0"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "0ef1ee0220239b3776f433314515fd849025673f",
-        "version" : "2.6.4"
+        "revision" : "0ca3004e98712ea2b39dd881d28448630cce1c99",
+        "version" : "2.7.0"
       }
     },
     {

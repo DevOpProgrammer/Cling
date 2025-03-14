@@ -1,4 +1,5 @@
 import Defaults
+import LaunchAtLogin
 import Lowtech
 import LowtechIndie
 import SwiftUI
@@ -27,6 +28,7 @@ struct SettingsView: View {
     @Default(.triggerKeys) private var triggerKeys
     @Default(.searchScopes) private var searchScopes
     @Default(.fasterSearchLessOptimalResults) private var fasterSearchLessOptimalResults
+    @Default(.externalVolumes) private var externalVolumes
 
     private func selectApp(type: String, onCompletion: @escaping (URL) -> Void) {
         let panel = NSOpenPanel()
@@ -46,6 +48,8 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            LaunchAtLogin.Toggle()
+
             HStack {
                 (
                     Text("Text editor")
@@ -141,6 +145,9 @@ struct SettingsView: View {
                                     .font(.system(size: 11)).foregroundColor(.secondary)
                             ).fixedSize()
                         }
+
+                        Divider()
+                        VolumeListView()
                     }.padding(.leading, 10)
                 }
 
@@ -274,4 +281,93 @@ struct IgnoreHelpText: View {
             .foregroundColor(.secondary)
         }
     }
+}
+
+import System
+
+let VOLUMES: FilePath = "/Volumes"
+
+extension URL {
+    var volumeName: String? {
+        (try? resourceValues(forKeys: [.volumeNameKey]))?.volumeName
+    }
+    var isLocalVolume: Bool {
+        (try? resourceValues(forKeys: [.volumeIsLocalKey]))?.volumeIsLocal == true
+    }
+    var isRootVolume: Bool {
+        (try? resourceValues(forKeys: [.volumeIsRootFileSystemKey]))?.volumeIsRootFileSystem == true
+    }
+    var isVolume: Bool {
+        guard let vals = try? resourceValues(forKeys: [.isVolumeKey, .volumeIsRootFileSystemKey]) else { return false }
+        return vals.isVolume == true && vals.volumeIsRootFileSystem == false
+    }
+}
+
+extension FilePath: @retroactive Comparable {
+    public static func < (lhs: FilePath, rhs: FilePath) -> Bool {
+        lhs.string < rhs.string
+    }
+
+    @MainActor
+    var isOnExternalVolume: Bool {
+        let volume = FUZZY.externalVolumes
+            .filter { self.starts(with: $0) }
+            .max(by: \.components.count)
+        guard let volume else { return false }
+        return !volume.url.isLocalVolume
+    }
+
+    var enabledVolumeBinding: Binding<Bool> {
+        Binding(
+            get: { !Defaults[.disabledVolumes].contains(self) },
+            set: { enabled in
+                if enabled {
+                    Defaults[.disabledVolumes].removeAll { $0 == self }
+                } else {
+                    Defaults[.disabledVolumes].append(self)
+                }
+            }
+        )
+    }
+}
+
+struct VolumeListView: View {
+    var body: some View {
+        VStack(alignment: .leading) {
+            HStack {
+                (
+                    Text("External Volumes")
+                        + Text("\nIndex external or network drives")
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                ).fixedSize()
+            }
+
+            if !fuzzy.externalVolumes.isEmpty {
+                List {
+                    ForEach(fuzzy.externalVolumes, id: \.string) { volume in
+                        volumeItem(volume)
+                    }
+                }
+            }
+        }
+    }
+
+    func volumeItem(_ volume: FilePath) -> some View {
+        Toggle(isOn: volume.enabledVolumeBinding) {
+            HStack {
+                Image(systemName: "externaldrive")
+                Text(volume.name.string)
+                Spacer()
+                Text(volume.shellString)
+                    .monospaced()
+                    .foregroundColor(.secondary)
+                    .truncationMode(.middle)
+            }
+        }
+
+    }
+
+    @State private var fuzzy = FUZZY
+
+    @Default(.disabledVolumes) private var disabledVolumes
 }

@@ -100,7 +100,12 @@ struct ContentView: View {
         VStack {
             searchSection
                 .onKeyPress(
-                    keys: Set(folderFilters.compactMap(\.keyEquivalent) + quickFilters.compactMap(\.keyEquivalent) + [.escape]),
+                    keys: Set(
+                        folderFilters.compactMap(\.keyEquivalent) +
+                            quickFilters.compactMap(\.keyEquivalent) +
+                            (fuzzy.enabledVolumes.isEmpty ? [] : (0 ... fuzzy.enabledVolumes.count).compactMap(\.s.keyEquivalent)) +
+                            [.escape]
+                    ),
                     phases: [.down], action: handleFilterKeyPress
                 )
 
@@ -121,7 +126,12 @@ struct ContentView: View {
                     return .handled
                 }
                 .onKeyPress(
-                    keys: Set(folderFilters.compactMap(\.keyEquivalent) + quickFilters.compactMap(\.keyEquivalent) + [.escape]),
+                    keys: Set(
+                        folderFilters.compactMap(\.keyEquivalent) +
+                            quickFilters.compactMap(\.keyEquivalent) +
+                            (fuzzy.enabledVolumes.isEmpty ? [] : (0 ... fuzzy.enabledVolumes.count).compactMap(\.s.keyEquivalent)) +
+                            [.escape]
+                    ),
                     phases: [.down], action: handleFilterKeyPress
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -229,6 +239,7 @@ struct ContentView: View {
         guard keyPress.key != .escape else {
             fuzzy.folderFilter = nil
             fuzzy.quickFilter = nil
+            fuzzy.volumeFilter = nil
             focused = .search
             return .handled
         }
@@ -243,6 +254,12 @@ struct ContentView: View {
             focused = .search
             return .handled
         }
+        if let index = keyPress.key.character.wholeNumberValue, let filter = ([FilePath.root] + fuzzy.enabledVolumes)[safe: index] {
+            fuzzy.volumeFilter = filter
+            focused = .search
+            return .handled
+        }
+
         return .ignored
     }
 
@@ -428,7 +445,7 @@ struct ContentView: View {
             Text(path.memoz.humanizedFileSize)
                 .monospaced()
                 .frame(width: 80, alignment: .trailing)
-            Text((path.memoz.modificationDate ?? Date()).formatted(dateFormat))
+            Text(path.memoz.formattedModificationDate)
                 .monospaced()
                 .frame(width: 200, alignment: .leading)
         }
@@ -445,14 +462,70 @@ struct ContentView: View {
     }
 }
 
+@MainActor
+class FilePathBackgroundTasks {
+    static let shared = FilePathBackgroundTasks()
+
+    func fetchAttributes(of path: FilePath, force: Bool = false) {
+        guard force || (attrCache[path] == nil && (attrFetchers[path]?.isCancelled ?? true)) else { return }
+        attrFetchers[path]?.cancel()
+
+        let fetcher = DispatchWorkItem {
+            let attrs: [FileAttributeKey: Any]
+            let icon: NSImage
+            do {
+                attrs = try FileManager.default.attributesOfItem(atPath: path.string)
+                icon = NSWorkspace.shared.icon(forFile: path.string)
+            } catch {
+                log.error("Error fetching file metadata for \(path): \(error)")
+                mainActor { self.attrFetchers[path] = nil }
+                return
+            }
+
+            mainActor {
+                self.attrCache[path] = attrs
+                self.attrFetchers[path] = nil
+                path.cache(((attrs[.modificationDate] as? Date) ?? Date()).formatted(dateFormat), forKey: \FilePath.formattedModificationDate)
+                path.cache(((attrs[.size] as? UInt64)?.i ?? 0).humanSize, forKey: \FilePath.humanizedFileSize)
+                path.cache(icon, forKey: \FilePath.icon)
+                FUZZY.reloadResults()
+            }
+
+        }
+        attrFetchers[path] = fetcher
+        DispatchQueue.global(qos: .background).async(execute: fetcher)
+    }
+
+    private var attrFetchers: [FilePath: DispatchWorkItem] = [:]
+    private var attrCache: [FilePath: [FileAttributeKey: Any]] = [:]
+
+}
+
+@MainActor
 extension FilePath {
+    var formattedModificationDate: String {
+        guard !memoz.isOnExternalVolume else {
+            FilePathBackgroundTasks.shared.fetchAttributes(of: self)
+            return "Fetching..."
+        }
+        return (modificationDate ?? Date()).formatted(dateFormat)
+    }
+
     var humanizedFileSize: String {
-        (fileSize() ?? 0).humanSize
+        guard !memoz.isOnExternalVolume else {
+            FilePathBackgroundTasks.shared.fetchAttributes(of: self)
+            return "—"
+        }
+        return (fileSize() ?? 0).humanSize
     }
     var icon: NSImage {
-        NSWorkspace.shared.icon(forFile: string)
+        guard !memoz.isOnExternalVolume else {
+            return NSWorkspace.shared.icon(for: memoz.isDir ? .volume : .plainText)
+        }
+        return NSWorkspace.shared.icon(forFile: string)
     }
 }
+
 // #Preview {
 //     ContentView()
 // }
