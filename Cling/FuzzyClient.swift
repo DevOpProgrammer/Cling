@@ -779,7 +779,7 @@ class FuzzyClient {
                 $0.memoz.isOnExternalVolume ? true : $0.exists
             }
             self.results = self.sortedResults()
-            if !self.emptyQuery {
+            if !self.emptyQuery || self.volumeFilter != nil {
                 self.noQuery = false
             }
         }
@@ -851,7 +851,7 @@ class FuzzyClient {
     func sendQuery(_ query: String) {
         queryTask?.cancel()
 
-        if query.isEmpty, quickFilter == nil {
+        if query.isEmpty, quickFilter == nil, volumeFilter == nil {
             noQuery = true
             scoredResults = []
             results = []

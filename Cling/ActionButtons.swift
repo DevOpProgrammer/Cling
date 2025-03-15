@@ -175,7 +175,9 @@ struct ActionButtons: View {
     }
 
     private var results: [FilePath] {
-        fuzzy.noQuery ? fuzzy.recents : fuzzy.results
+        (fuzzy.noQuery && fuzzy.volumeFilter == nil)
+            ? (fuzzy.sortField == .score ? fuzzy.recents : fuzzy.sortedRecents)
+            : fuzzy.results
     }
 
     private var quicklookButton: some View {

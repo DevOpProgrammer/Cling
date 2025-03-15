@@ -11,10 +11,10 @@
             <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Cling-1.2.html</sparkle:releaseNotesLink>
-            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.2.dmg" length="18539720" type="application/octet-stream" sparkle:edSignature="148n9XN67ekwtGOpAP+nh1OwJW3l2NJ/vidCgx3T5xUc2OW0MKN5AaKLV2F0+bRTm3uF3ZleHRimb4WigkyBDA=="/>
+            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.2.dmg" length="18541499" type="application/octet-stream" sparkle:edSignature="59kPy9g/xruqvULdTy+O/fIRJbp9LZRYTNXRre1gymkbERPfQZ7WjOiBI3s6URXFvfS60x5o4NMzPDXR/EpQDg=="/>
             <sparkle:deltas>
-                <enclosure url="https://files.lowtechguys.com/releases/Cling1.2-1.1.delta" sparkle:deltaFrom="1.1" length="3391278" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="Y4YBPzHAbxg7F4gQve/JofxDVXrGVzWGNvArN3VGQ9ac4cRBNbOVAq/T6cdk/M7I6o5GRCZ290wtxmrt5MuWDw=="/>
-                <enclosure url="https://files.lowtechguys.com/releases/Cling1.2-1.0.delta" sparkle:deltaFrom="1.0" length="5372430" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="1fxKFffd/T3DvVLeH8RbqHTzEO6qxfohXhGNPU2cX4L8v6hwQgMDj7K48gIEucQr1cmnbUdWAavSQdjLPlvHDA=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Cling1.2-1.1.delta" sparkle:deltaFrom="1.1" length="3394546" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="WoCYvaq3agXSbdsZpZPNL66sDhe5m0f7e6MLmjsgrtDj5KVtewIWVx+ybPKU+yQAL2whfZwmDk6ADbnEPcnSCg=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Cling1.2-1.0.delta" sparkle:deltaFrom="1.0" length="5379582" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="WxeTekiApCnXp4OQHvuW0PP/curFvfGCd7HyOqdOyWiPV0gHb3oB+3/RT2pzR1DR4OnnFG+8K/ZSz/oMcpcRCw=="/>
             </sparkle:deltas>
         </item>
         <item>
