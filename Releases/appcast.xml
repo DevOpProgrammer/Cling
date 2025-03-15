@@ -3,6 +3,21 @@
     <channel>
         <title>Cling</title>
         <item>
+            <title>1.2</title>
+            <pubDate>Sat, 15 Mar 2025 23:10:48 +0200</pubDate>
+            <link>https://lowtechguys.com/cling</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Cling/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>1.2</sparkle:version>
+            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Cling-1.2.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.2.dmg" length="18539720" type="application/octet-stream" sparkle:edSignature="148n9XN67ekwtGOpAP+nh1OwJW3l2NJ/vidCgx3T5xUc2OW0MKN5AaKLV2F0+bRTm3uF3ZleHRimb4WigkyBDA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://files.lowtechguys.com/releases/Cling1.2-1.1.delta" sparkle:deltaFrom="1.1" length="3391278" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="Y4YBPzHAbxg7F4gQve/JofxDVXrGVzWGNvArN3VGQ9ac4cRBNbOVAq/T6cdk/M7I6o5GRCZ290wtxmrt5MuWDw=="/>
+                <enclosure url="https://files.lowtechguys.com/releases/Cling1.2-1.0.delta" sparkle:deltaFrom="1.0" length="5372430" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="864784" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,en" sparkle:edSignature="1fxKFffd/T3DvVLeH8RbqHTzEO6qxfohXhGNPU2cX4L8v6hwQgMDj7K48gIEucQr1cmnbUdWAavSQdjLPlvHDA=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.1</title>
             <pubDate>Wed, 12 Mar 2025 15:26:43 +0200</pubDate>
             <link>https://lowtechguys.com/cling</link>
