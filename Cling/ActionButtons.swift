@@ -133,6 +133,7 @@ struct ActionButtons: View {
             }
             .keyboardShortcut(.delete, modifiers: [.command, .option])
             .help("Permanently delete the selected files")
+            .disabled(selectedResults.contains(where: \.isOnReadOnlyVolume))
         } else {
             Button("⌘⌫ Trash", role: .destructive) {
                 if suppressTrashConfirm {
@@ -143,6 +144,7 @@ struct ActionButtons: View {
             }
             .keyboardShortcut(.delete, modifiers: [.command])
             .help("Move the selected files to the trash")
+            .disabled(selectedResults.contains(where: \.isOnReadOnlyVolume))
             .confirmationDialog(
                 "Are you sure?",
                 isPresented: $isPresentingConfirm
@@ -178,7 +180,7 @@ struct ActionButtons: View {
 
     private var quicklookButton: some View {
         Button(action: quicklook) {
-            Text("⌘Y Quicklook")
+            Text("\(focused.wrappedValue == .search ? "⌘Y" : "⎵") Quicklook")
         }
         .keyboardShortcut("y", modifiers: [.command])
         .help("Preview the selected files")

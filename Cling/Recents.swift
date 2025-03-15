@@ -79,6 +79,7 @@ let queryFinishCallback: CFNotificationCallback = { notificationCenter, observer
     mainActor {
         let paths = query.getPaths()
         FUZZY.recents = paths
+        FUZZY.sortedRecents = FUZZY.sortedResults(results: paths)
     }
 }
 
@@ -99,6 +100,7 @@ let queryUpdateCallback: CFNotificationCallback = { notificationCenter, observer
     mainActor {
         let paths = query.getPaths()
         FUZZY.recents = paths
+        FUZZY.sortedRecents = FUZZY.sortedResults(results: paths)
     }
 
     // let changed = userInfo?[kMDQueryUpdateChangedItems] as? [MDItem]

@@ -301,6 +301,10 @@ extension URL {
         guard let vals = try? resourceValues(forKeys: [.isVolumeKey, .volumeIsRootFileSystemKey]) else { return false }
         return vals.isVolume == true && vals.volumeIsRootFileSystem == false
     }
+    var volumeIsReadOnly: Bool {
+        guard let vals = try? resourceValues(forKeys: [.volumeIsReadOnlyKey]) else { return false }
+        return vals.volumeIsReadOnly == true
+    }
 }
 
 extension FilePath: @retroactive Comparable {
@@ -309,12 +313,20 @@ extension FilePath: @retroactive Comparable {
     }
 
     @MainActor
-    var isOnExternalVolume: Bool {
-        let volume = FUZZY.externalVolumes
+    var volume: FilePath? {
+        FUZZY.externalVolumes
             .filter { self.starts(with: $0) }
             .max(by: \.components.count)
-        guard let volume else { return false }
+    }
+    @MainActor
+    var isOnExternalVolume: Bool {
+        guard let volume = memoz.volume else { return false }
         return !volume.url.isLocalVolume
+    }
+    @MainActor
+    var isOnReadOnlyVolume: Bool {
+        guard let volume = memoz.volume else { return false }
+        return FUZZY.readOnlyVolumes.contains(volume)
     }
 
     var enabledVolumeBinding: Binding<Bool> {
@@ -327,6 +339,12 @@ extension FilePath: @retroactive Comparable {
                     Defaults[.disabledVolumes].append(self)
                 }
             }
+        )
+    }
+    var reindexTimeIntervalBinding: Binding<Double> {
+        Binding(
+            get: { Defaults[.reindexTimeIntervalPerVolume][self] ?? DEFAULT_VOLUME_REINDEX_INTERVAL },
+            set: { Defaults[.reindexTimeIntervalPerVolume][self] = $0 }
         )
     }
 }
@@ -352,22 +370,87 @@ struct VolumeListView: View {
         }
     }
 
-    func volumeItem(_ volume: FilePath) -> some View {
-        Toggle(isOn: volume.enabledVolumeBinding) {
-            HStack {
-                Image(systemName: "externaldrive")
-                Text(volume.name.string)
-                Spacer()
-                Text(volume.shellString)
-                    .monospaced()
-                    .foregroundColor(.secondary)
-                    .truncationMode(.middle)
-            }
-        }
+    @Default(.reindexTimeIntervalPerVolume) private var reindexTimeIntervalPerVolume
 
+    func volumeItem(_ volume: FilePath) -> some View {
+        VStack(alignment: .leading) {
+            Toggle(isOn: volume.enabledVolumeBinding) {
+                HStack {
+                    Image(systemName: "externaldrive")
+                    Text(volume.name.string)
+                    Spacer()
+                    Text(volume.shellString)
+                        .monospaced()
+                        .foregroundColor(.secondary)
+                        .truncationMode(.middle)
+                }
+            }
+            ReindexTimeIntervalSlider(volume: volume, interval: Defaults[.reindexTimeIntervalPerVolume][volume] ?? DEFAULT_VOLUME_REINDEX_INTERVAL)
+        }
     }
 
     @State private var fuzzy = FUZZY
 
     @Default(.disabledVolumes) private var disabledVolumes
+}
+
+struct ReindexTimeIntervalSlider: View {
+    var volume: FilePath
+
+    var body: some View {
+        HStack {
+            Text("Reindex Interval: ")
+                .round(12)
+            Slider(value: $interval, in: 3600 ... 2_419_200, step: 3600, onEditingChanged: { editing in
+                if !editing {
+                    Defaults[.reindexTimeIntervalPerVolume][volume] = interval
+                }
+            }) {
+                Text(interval.humanizedInterval).mono(11)
+                    .frame(width: 150, alignment: .trailing)
+            }
+        }
+    }
+
+    @State var interval: TimeInterval = DEFAULT_VOLUME_REINDEX_INTERVAL
+
+}
+
+extension TimeInterval {
+    var humanizedInterval: String {
+        switch self {
+        case 0 ..< 60:
+            return "\(Int(self)) second\(Int(self) > 1 ? "s" : "")"
+        case 60 ..< 3600:
+            let minutes = Int(self / 60)
+            let seconds = Int(self) % 60
+            return seconds == 0
+                ? "\(minutes) minute\(minutes > 1 ? "s" : "")"
+                : "\(minutes) minute\(minutes > 1 ? "s" : "") \(seconds) second\(seconds > 1 ? "s" : "")"
+        case 3600 ..< 86400:
+            let hours = Int(self / 3600)
+            let minutes = Int(self / 60) % 60
+            return minutes == 0
+                ? "\(hours) hour\(hours > 1 ? "s" : "")"
+                : "\(hours) hour\(hours > 1 ? "s" : "") \(minutes) minute\(minutes > 1 ? "s" : "")"
+        case 86400 ..< 604_800:
+            let days = Int(self / 86400)
+            let hours = Int(self / 3600) % 24
+            return hours == 0
+                ? "\(days) day\(days > 1 ? "s" : "")"
+                : "\(days) day\(days > 1 ? "s" : "") \(hours) hour\(hours > 1 ? "s" : "")"
+        case 604_800 ..< 2_419_200:
+            let weeks = Int(self / 604_800)
+            let days = Int(self / 86400) % 7
+            return days == 0
+                ? "\(weeks) week\(weeks > 1 ? "s" : "")"
+                : "\(weeks) week\(weeks > 1 ? "s" : "") \(days) day\(days > 1 ? "s" : "")"
+        default:
+            let months = Int(self / 2_419_200)
+            let weeks = Int(self / 604_800) % 4
+            return weeks == 0
+                ? "\(months) month\(months > 1 ? "s" : "")"
+                : "\(months) month\(months > 1 ? "s" : "") \(weeks) week\(weeks > 1 ? "s" : "")"
+        }
+    }
 }

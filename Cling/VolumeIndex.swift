@@ -1,5 +1,6 @@
 import Cocoa
 import Combine
+import Defaults
 import Foundation
 import Lowtech
 import SwiftTerm
@@ -14,7 +15,8 @@ extension FuzzyClient {
                 return false
             }
             let index = indexFolder / "\(volume.name.string.replacingOccurrences(of: " ", with: "-")).index"
-            return !index.exists || (index.timestamp ?? 0) < Date().addingTimeInterval(-DEFAULT_VOLUME_REINDEX_INTERVAL).timeIntervalSince1970
+            let interval = Defaults[.reindexTimeIntervalPerVolume][volume] ?? DEFAULT_VOLUME_REINDEX_INTERVAL
+            return !index.exists || (index.timestamp ?? 0) < Date().addingTimeInterval(-interval).timeIntervalSince1970
         }
     }
 

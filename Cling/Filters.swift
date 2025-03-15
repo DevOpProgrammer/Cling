@@ -287,9 +287,9 @@ func saveQuickFilter(id: String, query: String, key: SauceKey, originalID: Strin
     let key = key.lowercasedChar.first
     let filter = QuickFilter(id: id, query: query, key: key)
     let originalFilter = Defaults[.quickFilters].first { $0.id == originalID }
-    if let key, let existingFilter = Defaults[.folderFilters].first(where: { $0.key == key }) {
-        Defaults[.folderFilters] = Defaults[.folderFilters].without(existingFilter) + [existingFilter.withKey(nil)]
-    }
+    // if let key, let existingFilter = Defaults[.folderFilters].first(where: { $0.key == key }) {
+    //     Defaults[.folderFilters] = Defaults[.folderFilters].without(existingFilter) + [existingFilter.withKey(nil)]
+    // }
     if let key, let existingFilter = Defaults[.quickFilters].first(where: { $0.key == key }), existingFilter != originalFilter {
         Defaults[.quickFilters] = Defaults[.quickFilters].without([existingFilter, originalFilter ?? filter]) + [existingFilter.withKey(nil), filter]
         FUZZY.quickFilter = filter
@@ -320,9 +320,9 @@ func saveFolderFilter(id: String, folders: [FilePath], key: SauceKey, originalID
     let key = key.lowercasedChar.first
     let filter = FolderFilter(id: id, folders: folders, key: key)
     let originalFilter = Defaults[.folderFilters].first { $0.id == originalID }
-    if let key, let existingFilter = Defaults[.quickFilters].first(where: { $0.key == key }) {
-        Defaults[.quickFilters] = Defaults[.quickFilters].without(existingFilter) + [existingFilter.withKey(nil)]
-    }
+    // if let key, let existingFilter = Defaults[.quickFilters].first(where: { $0.key == key }) {
+    //     Defaults[.quickFilters] = Defaults[.quickFilters].without(existingFilter) + [existingFilter.withKey(nil)]
+    // }
     if let key, let existingFilter = Defaults[.folderFilters].first(where: { $0.key == key }), existingFilter != originalFilter {
         Defaults[.folderFilters] = Defaults[.folderFilters].without([existingFilter, originalFilter ?? filter]) + [existingFilter.withKey(nil), filter]
         FUZZY.folderFilter = filter

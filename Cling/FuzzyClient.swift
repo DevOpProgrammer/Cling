@@ -10,6 +10,8 @@ import System
 
 let FD_BINARY = Bundle.main.url(forResource: "fd", withExtension: nil)!.existingFilePath!
 let FZF_BINARY = Bundle.main.url(forResource: "fzf", withExtension: nil)!.existingFilePath!
+let RG_BINARY = Bundle.main.url(forResource: "rg", withExtension: nil)!.existingFilePath!
+
 let FS_IGNORE = Bundle.main.url(forResource: "fsignore", withExtension: nil)!.existingFilePath!
 let FS_IGNORE_RECENTS = Bundle.main.url(forResource: "fsignore-recents", withExtension: nil)!.existingFilePath!
 
@@ -48,37 +50,32 @@ enum SortField: String, CaseIterable, Identifiable {
     case path
     case size
     case date
+    case kind
 
     var id: String { rawValue }
-    var key: Character {
-        switch self {
-        case .score: "s"
-        case .name: "n"
-        case .path: "p"
-        case .size: "z"
-        case .date: "d"
-        }
-    }
 }
 
 @Observable @MainActor
 class FuzzyClient {
     static let UNESCAPED_SHELL_CHARS = /([^\\])?(['${>&*#;?<`])/
+    static let initialVolumes = getVolumes()
+
+    static let RG_COMMAND = "'\(RG_BINARY.string)' --color=never --no-line-number --no-filename --mmap"
+
+    @ObservationIgnored var terminal: FZFTerminal!
+    @ObservationIgnored var childHandle: FileHandle?
+    @ObservationIgnored var indexProcesses: [Process] = []
 
     var clopIsAvailable = false
-    @ObservationIgnored var terminal: FZFTerminal!
     var removedFiles: Set<String> = []
     var results: [FilePath] = []
     var seenPaths: Set<String> = []
-    @ObservationIgnored var childHandle: FileHandle?
-    @ObservationIgnored var indexProcesses: [Process] = []
     var operation = " "
     var scoredResults: [FilePath] = []
     var recents: [FilePath] = []
+    var sortedRecents: [FilePath] = []
     var commonOpenWithApps: [URL] = []
     var openWithAppShortcuts: [URL: Character] = [:]
-    var folderFilter: FolderFilter?
-    var quickFilter: QuickFilter?
     var noQuery = true
     var backgroundIndexing = false
     var hasFullDiskAccess: Bool = FullDiskAccess.isGranted
@@ -86,15 +83,19 @@ class FuzzyClient {
     @ObservationIgnored @Setting(.fasterSearchLessOptimalResults) var fasterSearchLessOptimalResults: Bool
 
     var disabledVolumes: [FilePath] = Defaults[.disabledVolumes]
-    var enabledVolumes: [FilePath] = getVolumes().filter { !Defaults[.disabledVolumes].contains($0) }
-    var externalIndexes: [FilePath] = getVolumes()
+    var enabledVolumes: [FilePath] = initialVolumes.filter { !Defaults[.disabledVolumes].contains($0) }
+    var externalIndexes: [FilePath] = initialVolumes
         .filter { !Defaults[.disabledVolumes].contains($0) }
         .map { volume in
             indexFolder / "\(volume.name.string.replacingOccurrences(of: " ", with: "-")).index"
         }
 
-    var externalVolumes: [FilePath] = getVolumes() { didSet {
+    var readOnlyVolumes: [FilePath] = initialVolumes.filter(\.url.volumeIsReadOnly)
+    var quickFilter: QuickFilter?
+
+    var externalVolumes: [FilePath] = initialVolumes { didSet {
         enabledVolumes = externalVolumes.filter { !disabledVolumes.contains($0) }
+        readOnlyVolumes = externalVolumes.filter(\.url.volumeIsReadOnly)
         externalIndexes = getExternalIndexes()
 
         indexStaleExternalVolumes()
@@ -108,6 +109,17 @@ class FuzzyClient {
             restartServer()
         }
     }
+    var folderFilter: FolderFilter? {
+        didSet {
+            guard folderFilter != oldValue, let folderFilter else {
+                return
+            }
+            if let volumeFilter, !folderFilter.folders.allSatisfy({ $0.starts(with: volumeFilter) }) {
+                self.volumeFilter = nil
+            }
+            restartServer()
+        }
+    }
 
     var sortField: SortField = .score {
         didSet {
@@ -115,6 +127,7 @@ class FuzzyClient {
                 return
             }
             results = sortedResults()
+            sortedRecents = sortedResults(results: recents)
         }
     }
     var reverseSort = true {
@@ -123,6 +136,7 @@ class FuzzyClient {
                 return
             }
             results = sortedResults()
+            sortedRecents = sortedResults(results: recents)
         }
     }
 
@@ -230,7 +244,7 @@ class FuzzyClient {
     // Methods
     func start() {
         asyncNow {
-            let clopIsAvailable = ClopSDK.shared.waitForClopToBeAvailable()
+            let clopIsAvailable = ClopSDK.shared.getClopAppURL() != nil
             mainActor { self.clopIsAvailable = clopIsAvailable }
         }
 
@@ -284,6 +298,15 @@ class FuzzyClient {
 
                 restartServer()
             }.store(in: &observers)
+
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didMountNotification)
+            .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification))
+            .sink { _ in
+                self.externalVolumes = Self.getVolumes()
+                self.restartServer()
+            }
+            .store(in: &observers)
 
         indexFolder.mkdir(withIntermediateDirectories: true, permissions: 0o700)
         externalIndexes = getExternalIndexes()
@@ -606,20 +629,30 @@ class FuzzyClient {
         }
     }
 
-    func startServer(indexes: [FilePath]? = nil) {
-        let indexes: [FilePath] = indexes ?? limitedSearchScopeIndexes ?? searchScopeIndexes
+    func rgCommand(_ filter: FolderFilter, args: [String] = [], files: [FilePath] = []) -> String {
+        let folderPattern = filter.folders.map { "^\($0.string)/" }.joined(separator: "|")
+        let files = files.map { "$'\($0.string)'" }.joined(separator: " ")
+        return Self.RG_COMMAND + " \(args.joined(separator: " ")) " + "$'\(folderPattern)' " + files
+    }
 
-        let allIndexFiles = indexes
-            .filter(\.exists)
-            .map { "\"\($0.string)\"" }
-            .joined(separator: " ")
-        let liveIndexCommand = indexes.contains { f in scopeForIndex(f).map { scope in Defaults[.searchScopes].contains(scope) } ?? false }
-            ? "; tail -f \"\(liveIndex.string)\""
+    func startServer(indexes: [FilePath]? = nil) {
+        let indexes: [FilePath] = (indexes ?? limitedSearchScopeIndexes ?? searchScopeIndexes).filter(\.exists)
+
+        let liveIndexIsRelevant = indexes.contains { f in scopeForIndex(f).map { scope in Defaults[.searchScopes].contains(scope) } ?? false }
+        let liveIndexCommand = liveIndexIsRelevant
+            ? "; tail -f \"\(liveIndex.string)\"" + (folderFilter.map { " | \(rgCommand($0, args: ["--line-buffered"]))" } ?? "")
             : ""
-        let query = constructQuery(query).trimmed.replacing(Self.UNESCAPED_SHELL_CHARS, with: { m in "\(m.1 ?? "")\\\(m.2)" }).replacingOccurrences(of: "\"", with: "")
+
+        let printIndexCommand = if let filter = folderFilter {
+            rgCommand(filter, files: indexes)
+        } else {
+            "/bin/cat \(indexes.map { "\"\($0.string)\"" }.joined(separator: " "))"
+        }
+
+        let query = constructQuery(query).trimmed.replacing(Self.UNESCAPED_SHELL_CHARS, with: { m in "\(m.1 ?? "")\\\(m.2)" })
         let command =
-            "{ /bin/cat \(allIndexFiles) \(liveIndexCommand) } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT)' --listen=localhost:\(FZF_SERVER_PORT)"
-                + (query.isEmpty ? "" : " --query=\"\(query)\"")
+            "{ \(printIndexCommand) \(liveIndexCommand) } | \(FZF_BINARY) --algo=\(Defaults[.fasterSearchLessOptimalResults] ? "v1" : "v2") --height=20 --border=none --no-info --no-hscroll --no-unicode --no-mouse --no-separator --no-scrollbar --no-color --no-bold --no-clear --scheme=path --bind 'result:execute-silent:echo -n _ | nc -w 1 localhost \(SERVER_PORT)' --listen=localhost:\(FZF_SERVER_PORT)"
+                + (query.isEmpty ? "" : " --query=$'\(query)'")
         let env = Terminal.getEnvironmentVariables(termName: "xterm-256color") + [
             "FZF_API_KEY=\(FZF_API_KEY)",
             "FZF_COLUMNS=80",
@@ -678,17 +711,13 @@ class FuzzyClient {
             return
         }
 
-        if emptyQuery {
+        if emptyQuery, volumeFilter == nil {
             scoredResults = []
             results = []
             noQuery = true
             return
         }
 
-        fetchFromMainServer()
-    }
-
-    func fetchFromMainServer() {
         var request = URLRequest(url: FZF_URL)
         request.addValue(FZF_API_KEY, forHTTPHeaderField: "x-api-key")
 
@@ -773,28 +802,33 @@ class FuzzyClient {
         results = results.without(paths)
         scoredResults = scoredResults.without(paths)
         recents = recents.without(paths)
+        sortedRecents = sortedRecents.without(paths)
 
         fetchResults()
     }
 
-    func sortedResults() -> [FilePath] {
+    func sortedResults(results: [FilePath]? = nil) -> [FilePath] {
         guard sortField != .score else {
-            return scoredResults
+            return results ?? scoredResults
         }
-        return scoredResults.sorted { a, b in
+        return (results ?? scoredResults).sorted { a, b in
             switch sortField {
             case .name:
-                return reverseSort ? (a.name.string > b.name.string) : (a.name.string < b.name.string)
+                return reverseSort ? (a.name.string.lowercased() > b.name.string.lowercased()) : (a.name.string.lowercased() < b.name.string.lowercased())
             case .path:
-                return reverseSort ? (a.dir.string > b.dir.string) : (a.dir.string < b.dir.string)
+                return reverseSort ? (a.dir.string.lowercased() > b.dir.string.lowercased()) : (a.dir.string.lowercased() < b.dir.string.lowercased())
             case .size:
-                let aSize = a.fileSize() ?? 0
-                let bSize = b.fileSize() ?? 0
+                let aSize = a.memoz.size
+                let bSize = b.memoz.size
                 return reverseSort ? (aSize > bSize) : (aSize < bSize)
             case .date:
-                let aDate = a.modificationDate ?? .distantPast
-                let bDate = b.modificationDate ?? .distantPast
+                let aDate = a.memoz.date
+                let bDate = b.memoz.date
                 return reverseSort ? (aDate > bDate) : (aDate < bDate)
+            case .kind:
+                let aKind = ((a.memoz.isDir ? "\0" : "") + (a.extension ?? "") + (a.stem ?? "")).lowercased()
+                let bKind = ((b.memoz.isDir ? "\0" : "") + (b.extension ?? "") + (b.stem ?? "")).lowercased()
+                return reverseSort ? (aKind > bKind) : (aKind < bKind)
             default:
                 return true
             }
@@ -804,12 +838,9 @@ class FuzzyClient {
 
     func constructQuery(_ query: String) -> String {
         var query = query
-        if let filter = folderFilter {
-            let folders = filter.folders.map { "^\($0.string)" }.joined(separator: " | ")
-            query = "\(folders) \(query)"
-        }
+
         if let quickFilter {
-            query = "\(quickFilter.query) \(query)"
+            query = "\(query) \(quickFilter.query)"
         }
         if query.contains("~/") {
             query = query.replacingOccurrences(of: "~/", with: "\(HOME.string)/")
@@ -820,7 +851,7 @@ class FuzzyClient {
     func sendQuery(_ query: String) {
         queryTask?.cancel()
 
-        if query.isEmpty, folderFilter == nil, quickFilter == nil {
+        if query.isEmpty, quickFilter == nil {
             noQuery = true
             scoredResults = []
             results = []

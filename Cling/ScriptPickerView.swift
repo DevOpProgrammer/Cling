@@ -288,6 +288,9 @@ struct ScriptActionButtons: View {
             if clopCandidates.isNotEmpty {
                 let oKeyAvailable = !scriptManager.scriptShortcuts.values.contains("o")
                 Button(action: {
+                    guard ClopSDK.shared.waitForClopToBeAvailable(for: 5) else {
+                        return
+                    }
                     _ = try? ClopSDK.shared.optimise(
                         paths: clopCandidates.map(\.path),
                         aggressive: NSEvent.modifierFlags.contains(.option),

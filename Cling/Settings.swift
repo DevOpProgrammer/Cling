@@ -4,7 +4,7 @@ import Lowtech
 import SwiftUI
 import System
 
-extension FilePath: Defaults.Serializable {
+extension FilePath: Defaults.Serializable, @retroactive LosslessStringConvertible {
     public init?(from defaultsValue: String) {
         self.init(defaultsValue)
     }
@@ -73,6 +73,7 @@ let DEFAULT_FOLDER_FILTERS = [
 ]
 
 let DEFAULT_QUICK_FILTERS = [
+    QuickFilter(id: "Apps", query: ".app/$", key: "a"),
     QuickFilter(id: "PDFs", query: ".pdf$", key: "p"),
     QuickFilter(id: "Folders only", query: "/$", key: "f"),
 ]
@@ -114,4 +115,5 @@ extension Defaults.Keys {
 
     static let searchScopes = Key<[SearchScope]>("searchScopes", default: [.root, .home, .library])
     static let quickFilters = Key<[QuickFilter]>("quickFilters", default: DEFAULT_QUICK_FILTERS)
+    static let reindexTimeIntervalPerVolume = Key<[FilePath: Double]>("reindexTimeIntervalPerVolume", default: [:])
 }

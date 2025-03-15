@@ -9,6 +9,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
 
     static var shared: QuickLooker?
 
+    static var visible: Bool {
+        QLPreviewPanel.shared()?.isVisible ?? false
+    }
+
     let urls: [URL]
 
     static func quicklook(url: URL) {
@@ -18,6 +22,10 @@ final class QuickLooker: QLPreviewPanelDataSource {
     static func quicklook(urls: [URL], selectedItemIndex: Int = 0) {
         shared = QuickLooker(urls: urls)
         shared?.quicklook(selectedItemIndex: selectedItemIndex)
+    }
+
+    static func close() {
+        QLPreviewPanel.shared()?.close()
     }
 
     func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
@@ -38,4 +46,5 @@ final class QuickLooker: QLPreviewPanelDataSource {
         ql.currentPreviewItemIndex = selectedItemIndex
         ql.reloadData()
     }
+
 }

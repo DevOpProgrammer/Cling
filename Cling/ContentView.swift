@@ -244,23 +244,25 @@ struct ContentView: View {
             return .handled
         }
 
+        var result: KeyPress.Result = .ignored
+
         if let filter = folderFilters.first(where: { $0.keyEquivalent == keyPress.key }) {
             fuzzy.folderFilter = filter
-            focused = .search
-            return .handled
+            result = .handled
         }
         if let filter = quickFilters.first(where: { $0.keyEquivalent == keyPress.key }) {
             fuzzy.quickFilter = filter
-            focused = .search
-            return .handled
+            result = .handled
         }
         if let index = keyPress.key.character.wholeNumberValue, let filter = ([FilePath.root] + fuzzy.enabledVolumes)[safe: index] {
             fuzzy.volumeFilter = filter
-            focused = .search
-            return .handled
+            result = .handled
         }
 
-        return .ignored
+        if result == .handled {
+            focused = .search
+        }
+        return result
     }
 
     @State private var isAddingQuickFilter = false
@@ -308,7 +310,9 @@ struct ContentView: View {
 
     private var xButton: some View {
         Button(action: {
-            if fuzzy.query.isEmpty {
+            if QuickLooker.visible {
+                QuickLooker.close()
+            } else if fuzzy.query.isEmpty {
                 dismiss()
                 appManager.lastFrontmostApp?.activate()
             } else {
@@ -329,31 +333,37 @@ struct ContentView: View {
     @State private var nameWidth: CGFloat = 250
     @State private var pathWidth: CGFloat = 300
 
-    @ViewBuilder
     private var header: some View {
         HStack(spacing: 20) {
-            HStack {
-                Text("Name").fontWeight(fuzzy.sortField == .name ? .bold : .medium)
-                sortButton(.name, defaultReverse: false).keyboardShortcut("1", modifiers: [.control])
-                    .help("Sort by name (Control-1)")
+            HStack(spacing: 0) {
+                Text("Kind").fontWeight(fuzzy.sortField == .kind ? .bold : .medium)
+                sortButton(.kind, defaultReverse: false).keyboardShortcut("1", modifiers: [.control])
+                    .help("Sort by kind (Control-1)")
             }
-            .frame(width: nameWidth + 32, alignment: .leading)
-            HStack {
+            .frame(width: 50, alignment: .leading)
+            HStack(spacing: 0) {
+                Text("Name").fontWeight(fuzzy.sortField == .name ? .bold : .medium)
+                sortButton(.name, defaultReverse: false).keyboardShortcut("2", modifiers: [.control])
+                    .help("Sort by name (Control-2)")
+            }
+            .frame(width: nameWidth + 32 - 50, alignment: .leading)
+            .offset(x: -18)
+            HStack(spacing: 0) {
                 Text("Path").fontWeight(fuzzy.sortField == .path ? .bold : .medium)
-                sortButton(.path, defaultReverse: false).keyboardShortcut("2", modifiers: [.control])
-                    .help("Sort by path (Control-2)")
+                sortButton(.path, defaultReverse: false).keyboardShortcut("3", modifiers: [.control])
+                    .help("Sort by path (Control-3)")
             }
             .frame(width: pathWidth, alignment: .leading)
-            HStack {
+            HStack(spacing: 0) {
                 Text("Size").fontWeight(fuzzy.sortField == .size ? .bold : .medium)
-                sortButton(.size, defaultReverse: true).keyboardShortcut("3", modifiers: [.control])
-                    .help("Sort by size (Control-3)")
+                sortButton(.size, defaultReverse: true).keyboardShortcut("4", modifiers: [.control])
+                    .help("Sort by size (Control-4)")
             }
             .frame(width: 80, alignment: .trailing)
-            HStack {
+            HStack(spacing: 0) {
                 Text("Date Modified").fontWeight(fuzzy.sortField == .date ? .bold : .medium)
-                sortButton(.date, defaultReverse: true).keyboardShortcut("4", modifiers: [.control])
-                    .help("Sort by date modified (Control-4)")
+                sortButton(.date, defaultReverse: true).keyboardShortcut("5", modifiers: [.control])
+                    .help("Sort by date modified (Control-5)")
             }
             .frame(width: 160, alignment: .leading)
 
@@ -369,16 +379,18 @@ struct ContentView: View {
             .keyboardShortcut("0", modifiers: [.control])
             .help("Sort by score (Control-0)")
 
-        }.hfill(.leading)
+        }.hfill(.leading).font(.system(size: 11))
     }
 
     private var results: [FilePath] {
-        fuzzy.noQuery ? fuzzy.recents : fuzzy.results
+        (fuzzy.noQuery && fuzzy.volumeFilter == nil)
+            ? (fuzzy.sortField == .score ? fuzzy.recents : fuzzy.sortedRecents)
+            : fuzzy.results
     }
 
     @ViewBuilder
     private var resultsList: some View {
-        header.frame(height: 20, alignment: .leading).padding(.leading, 16)
+        header.frame(height: 20, alignment: .leading)
         List(selection: $selectedResults) {
             ForEach(results, id: \.self) { filepath in
                 row(filepath).tag(filepath.string)
@@ -429,7 +441,7 @@ struct ContentView: View {
                 .rotationEffect(.degrees(fuzzy.sortField == sorter && fuzzy.reverseSort ? 180 : 0))
                 .opacity(fuzzy.sortField == sorter ? 1 : 0.5)
         }
-        .buttonStyle(TextButton(borderColor: .clear))
+        .buttonStyle(BorderlessTextButton())
 //        .keyboardShortcut(KeyEquivalent(sorter.key), modifiers: [.shift])
     }
 
@@ -485,8 +497,16 @@ class FilePathBackgroundTasks {
             mainActor {
                 self.attrCache[path] = attrs
                 self.attrFetchers[path] = nil
-                path.cache(((attrs[.modificationDate] as? Date) ?? Date()).formatted(dateFormat), forKey: \FilePath.formattedModificationDate)
-                path.cache(((attrs[.size] as? UInt64)?.i ?? 0).humanSize, forKey: \FilePath.humanizedFileSize)
+
+                let date = (attrs[.modificationDate] as? Date) ?? Date()
+                path.cache(date.formatted(dateFormat), forKey: \FilePath.formattedModificationDate)
+                path.cache(date.iso8601String, forKey: \FilePath.isoFormattedModificationDate)
+                path.cache(date, forKey: \FilePath.date)
+
+                let size = (attrs[.size] as? UInt64)?.i ?? 0
+                path.cache(size.humanSize, forKey: \FilePath.humanizedFileSize)
+                path.cache(size, forKey: \FilePath.size)
+
                 path.cache(icon, forKey: \FilePath.icon)
                 FUZZY.reloadResults()
             }
@@ -503,12 +523,34 @@ class FilePathBackgroundTasks {
 
 @MainActor
 extension FilePath {
+    var date: Date {
+        guard !memoz.isOnExternalVolume else {
+            FilePathBackgroundTasks.shared.fetchAttributes(of: self)
+            return Date()
+        }
+        return modificationDate ?? Date()
+    }
     var formattedModificationDate: String {
         guard !memoz.isOnExternalVolume else {
             FilePathBackgroundTasks.shared.fetchAttributes(of: self)
             return "Fetching..."
         }
         return (modificationDate ?? Date()).formatted(dateFormat)
+    }
+    var isoFormattedModificationDate: String {
+        guard !memoz.isOnExternalVolume else {
+            FilePathBackgroundTasks.shared.fetchAttributes(of: self)
+            return "Fetching..."
+        }
+        return (modificationDate ?? Date()).iso8601String
+    }
+
+    var size: Int {
+        guard !memoz.isOnExternalVolume else {
+            FilePathBackgroundTasks.shared.fetchAttributes(of: self)
+            return 0
+        }
+        return fileSize() ?? 0
     }
 
     var humanizedFileSize: String {

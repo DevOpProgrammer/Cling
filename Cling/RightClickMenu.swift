@@ -102,8 +102,8 @@ struct RightClickMenu: View {
     private func exportCSV(to url: URL) throws {
         let header = "Path,Size,Date"
         let fileContents = selectedResults.map { path in
-            let size = path.fileSize() ?? 0
-            let date = (path.memoz.modificationDate ?? Date()).iso8601String
+            let size = path.memoz.size
+            let date = path.memoz.isoFormattedModificationDate
             return "\(path.string),\(size),\(date)"
         }.joined(separator: "\n")
         let csvContent = "\(header)\n\(fileContents)"
@@ -113,8 +113,8 @@ struct RightClickMenu: View {
     private func exportTSV(to url: URL) throws {
         let header = "Path\tSize\tDate"
         let fileContents = selectedResults.map { path in
-            let size = path.fileSize() ?? 0
-            let date = (path.memoz.modificationDate ?? Date()).iso8601String
+            let size = path.memoz.size
+            let date = path.memoz.isoFormattedModificationDate
             return "\(path.string)\t\(size)\t\(date)"
         }.joined(separator: "\n")
         let tsvContent = "\(header)\n\(fileContents)"
@@ -123,8 +123,8 @@ struct RightClickMenu: View {
 
     private func exportJSON(to url: URL) throws {
         let fileContents = selectedResults.map { path in
-            let size = path.fileSize() ?? 0
-            let date = (path.memoz.modificationDate ?? Date()).iso8601String
+            let size = path.memoz.size
+            let date = path.memoz.isoFormattedModificationDate
             return [
                 "path": path.string,
                 "size": size,

@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/FuzzyIdeas/ClopSDK",
       "state" : {
-        "revision" : "6dc1b02811d1fe0d015251536a513f654aa25cd0",
-        "version" : "1.1.1"
+        "revision" : "ccf4703690952671d5e2140fa029d00d4e81a854",
+        "version" : "1.1.2"
       }
     },
     {

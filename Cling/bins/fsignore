@@ -42,3 +42,4 @@ Library/DuetExpertCenter/
 **/TextIndex/
 io.tailscale.ipn.macos
 .stversions/
+.DS_Store
