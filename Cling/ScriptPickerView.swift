@@ -313,7 +313,7 @@ struct ScriptActionButtons: View {
     }
 
     private var runThroughScriptButton: some View {
-        Button("⌘E Execute script") {
+        Button("⌘X Execute script") {
             focused.wrappedValue = .executeScript
             isPresentingScriptPicker = true
         }
