@@ -2,7 +2,6 @@ import ClopSDK
 import Cocoa
 import Combine
 import Foundation
-import FullDiskAccess
 import Ignore
 import Lowtech
 import SwiftTerm

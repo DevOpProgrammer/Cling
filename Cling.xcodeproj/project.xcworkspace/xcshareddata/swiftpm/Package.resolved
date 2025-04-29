@@ -1,5 +1,5 @@
 {
-  "originHash" : "f5d73fe83f41d0f3fd1815656ff8c07dbeccd4db5aadbe22009c12f403e5d8ac",
+  "originHash" : "a6b5825647c84bf5935187eec8a0e5190d5d32089989f2e72a2bd0141c34722b",
   "pins" : [
     {
       "identity" : "appreceiptvalidator",
@@ -56,15 +56,6 @@
       }
     },
     {
-      "identity" : "fulldiskaccess",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/inket/FullDiskAccess",
-      "state" : {
-        "revision" : "846e04ea2b84fce843f47d7e7f3421189221829c",
-        "version" : "1.0.0"
-      }
-    },
-    {
       "identity" : "launchatlogin-modern",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sindresorhus/LaunchAtLogin-Modern",
@@ -79,7 +70,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "6c5468970d6dd008f6b60b31eb0fb27555760f3f"
+        "revision" : "a3087063e14be779efedf9ea27b2285be62b017f"
       }
     },
     {
