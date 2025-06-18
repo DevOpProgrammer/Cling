@@ -14,7 +14,7 @@
 ### Installation
 
 - Download the app from the [website](https://lowtechguys.com/cling) and drag it to your `Applications` folder
-- *Homebrew will be available once [this PR is merged](https://github.com/Homebrew/homebrew-cask/pull/205203)*
+- If you use [homebrew](https://brew.sh/), run `brew install --cask thelowtechguys-cling`
 
 ![screenshot](https://files.lowtechguys.com/cling-app-screenshot.png)
 
