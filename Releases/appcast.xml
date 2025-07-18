@@ -3,6 +3,17 @@
     <channel>
         <title>Cling</title>
         <item>
+            <title>1.2.2</title>
+            <pubDate>Fri, 18 Jul 2025 22:18:32 +0300</pubDate>
+            <link>https://lowtechguys.com/cling</link>
+            <sparkle:fullReleaseNotesLink>https://github.com/FuzzyIdeas/Cling/releases</sparkle:fullReleaseNotesLink>
+            <sparkle:version>1.2.2</sparkle:version>
+            <sparkle:shortVersionString>1.2.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://files.lowtechguys.com/ReleaseNotes/Cling-1.2.2.html</sparkle:releaseNotesLink>
+            <enclosure url="https://files.lowtechguys.com/releases/Cling-1.2.2.dmg" length="18688546" type="application/octet-stream" sparkle:edSignature="hIGFlBUU98Gh4k/pl5jJCrQk1aBlX6RaCXnqowiOFbpLt9Ei8TdftdXBh/TDi8XiYX//bbpfo1iQsw6ojsOtDA=="/>
+        </item>
+        <item>
             <title>1.2.1</title>
             <pubDate>Mon, 31 Mar 2025 14:17:15 +0300</pubDate>
             <link>https://lowtechguys.com/cling</link>

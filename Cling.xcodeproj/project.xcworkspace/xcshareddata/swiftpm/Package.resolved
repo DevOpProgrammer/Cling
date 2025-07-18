@@ -70,7 +70,7 @@
       "location" : "https://github.com/FuzzyIdeas/Lowtech",
       "state" : {
         "branch" : "ventura",
-        "revision" : "a3087063e14be779efedf9ea27b2285be62b017f"
+        "revision" : "56131c57a844073b15747046936113f56619efc3"
       }
     },
     {
@@ -105,8 +105,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/getsentry/sentry-cocoa",
       "state" : {
-        "revision" : "21223d1c864db0561d91f48d80f269a363a1625d",
-        "version" : "8.47.0"
+        "revision" : "ca92efeb24b10052cd2a79e5205f42c5a16770ec",
+        "version" : "8.53.2"
       }
     },
     {
@@ -114,8 +114,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/MacPaw/Setapp-framework",
       "state" : {
-        "revision" : "325aba75c006be6726420907eeb242a35f180e91",
-        "version" : "4.2.2"
+        "revision" : "09a4fb05223b7535aa99682dd331ac194c85a20e",
+        "version" : "4.3.1"
       }
     },
     {
@@ -123,8 +123,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle",
       "state" : {
-        "revision" : "0ca3004e98712ea2b39dd881d28448630cce1c99",
-        "version" : "2.7.0"
+        "revision" : "df074165274afaa39539c05d57b0832620775b11",
+        "version" : "2.7.1"
       }
     },
     {
@@ -132,8 +132,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-atomics",
       "state" : {
-        "revision" : "cd142fd2f64be2100422d658e7411e39489da985",
-        "version" : "1.2.0"
+        "revision" : "b601256eab081c0f92f059e12818ac1d4f178ff7",
+        "version" : "1.3.0"
       }
     },
     {
