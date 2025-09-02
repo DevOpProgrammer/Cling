@@ -78,30 +78,6 @@ private func cleanupOrphanedProcesses() {
     }
 }
 
-// Modify the existing AppDelegate class to include better resource management
-extension AppDelegate {
-    // Override the existing scheduleRelaunchTimer to be less aggressive now that we have proper cleanup
-    private func scheduleRelaunchTimer(interval: TimeInterval) {
-        relaunchTimer?.invalidate()
-        // Increase interval since we now have proper PTY cleanup
-        let adjustedInterval = interval * 2 // 24 hours instead of 12
-        relaunchTimer = Timer.scheduledTimer(withTimeInterval: adjustedInterval, repeats: false) { _ in
-            mainActor { self.attemptRelaunch() }
-        }
-    }
-    
-    // Add periodic PTY cleanup without full restart
-    private func schedulePeriodicCleanup() {
-        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in // Every 30 minutes
-            mainActor {
-                // Perform lightweight PTY cleanup
-                FUZZY.cleanupTerminals()
-                self.cleanupOrphanedProcesses()
-            }
-        }
-    }
-}
-
 @MainActor
 class AppDelegate: LowtechIndieAppDelegate, Sendable {
     static var shared: AppDelegate? { NSApp.delegate as? AppDelegate }
