@@ -25,11 +25,82 @@ var appArguments: [String] {
 
 @MainActor
 func cleanup() {
+    // Enhanced cleanup to ensure PTY resources are freed
     FUZZY.cleanup()
+    
+    // Force cleanup of any remaining terminals
+    FUZZY.cleanupTerminals()
+    
+    // Additional cleanup for any lingering processes
+    cleanupOrphanedProcesses()
 }
 
-let HOUR_FACTOR: TimeInterval = 60 * 60
-let MINUTE_FACTOR: TimeInterval = 60
+/// Clean up any orphaned PTY processes
+private func cleanupOrphanedProcesses() {
+    // Get current process ID
+    let currentPid = ProcessInfo.processInfo.processIdentifier
+    
+    // Use ps to find any child processes that might be hanging
+    let task = Process()
+    task.launchPath = "/bin/ps"
+    task.arguments = ["-o", "pid,ppid,comm", "-x"]
+    
+    let pipe = Pipe()
+    task.standardOutput = pipe
+    
+    do {
+        try task.run()
+        task.waitUntilExit()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        if let output = String(data: data, encoding: .utf8) {
+            let lines = output.components(separatedBy: .newlines)
+            
+            for line in lines {
+                let components = line.trimmingCharacters(in: .whitespaces).components(separatedBy: .whitespaces)
+                if components.count >= 3,
+                   let pid = Int32(components[0]),
+                   let ppid = Int32(components[1]),
+                   ppid == currentPid {
+                    
+                    // Kill child processes that might be holding PTY resources
+                    kill(pid, SIGTERM)
+                    
+                    // Force kill after a short delay if needed
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 1.0) {
+                        kill(pid, SIGKILL)
+                    }
+                }
+            }
+        }
+    } catch {
+        log.error("Failed to cleanup orphaned processes: \(error)")
+    }
+}
+
+// Modify the existing AppDelegate class to include better resource management
+extension AppDelegate {
+    // Override the existing scheduleRelaunchTimer to be less aggressive now that we have proper cleanup
+    private func scheduleRelaunchTimer(interval: TimeInterval) {
+        relaunchTimer?.invalidate()
+        // Increase interval since we now have proper PTY cleanup
+        let adjustedInterval = interval * 2 // 24 hours instead of 12
+        relaunchTimer = Timer.scheduledTimer(withTimeInterval: adjustedInterval, repeats: false) { _ in
+            mainActor { self.attemptRelaunch() }
+        }
+    }
+    
+    // Add periodic PTY cleanup without full restart
+    private func schedulePeriodicCleanup() {
+        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in // Every 30 minutes
+            mainActor {
+                // Perform lightweight PTY cleanup
+                FUZZY.cleanupTerminals()
+                self.cleanupOrphanedProcesses()
+            }
+        }
+    }
+}
 
 @MainActor
 class AppDelegate: LowtechIndieAppDelegate, Sendable {
@@ -56,8 +127,6 @@ class AppDelegate: LowtechIndieAppDelegate, Sendable {
         setupCleanup()
 
         // Setup periodic relaunch timer
-        scheduleRelaunchTimer(interval: 12 * HOUR_FACTOR) // 12 hours in seconds
-
         super.applicationDidFinishLaunching(notification)
 
         KM.specialKey = Defaults[.enableGlobalHotkey] ? Defaults[.showAppKey] : nil
@@ -271,12 +340,15 @@ class AppDelegate: LowtechIndieAppDelegate, Sendable {
 
     private var resizeCancellable: AnyCancellable?
 
-    // MARK: Relaunch Logic
 
-    private func scheduleRelaunchTimer(interval: TimeInterval) {
-        relaunchTimer?.invalidate()
-        relaunchTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { _ in
-            mainActor { self.attemptRelaunch() }
+    // Add periodic PTY cleanup without full restart
+    private func schedulePeriodicCleanup() {
+        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in // Every 30 minutes
+            mainActor {
+                // Perform lightweight PTY cleanup
+                FUZZY.cleanupTerminals()
+                self.cleanupOrphanedProcesses()
+            }
         }
     }
 
